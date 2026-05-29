@@ -1,0 +1,981 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FSA Smart Vending Machine — QRIS</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<style>
+:root {
+  --bg: #0a0e1a;
+  --surface: #111827;
+  --surface2: #1a2235;
+  --border: #2a3a55;
+  --accent: #00d4ff;
+  --accent2: #7c3aed;
+  --success: #10b981;
+  --warning: #f59e0b;
+  --error: #ef4444;
+  --text: #e2e8f0;
+  --muted: #64748b;
+  --mono: 'Space Mono', monospace;
+  --sans: 'DM Sans', sans-serif;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--sans);
+  min-height: 100vh;
+}
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(0,212,255,0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0,212,255,0.03) 1px, transparent 1px);
+  background-size: 40px 40px;
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* ── PAGE VIEWS ── */
+.view { display: none; position: relative; z-index: 1; }
+.view.active { display: block; }
+
+/* ── NAV ── */
+nav {
+  position: sticky; top: 0; z-index: 100;
+  background: rgba(10,14,26,0.92);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--border);
+  padding: 0 24px;
+  display: flex; align-items: center; gap: 0;
+}
+.nav-brand {
+  font-family: var(--mono);
+  font-size: 13px;
+  color: var(--accent);
+  padding: 14px 0;
+  margin-right: 24px;
+  flex-shrink: 0;
+}
+.nav-tabs { display: flex; gap: 4px; }
+.nav-tab {
+  font-size: 13px;
+  font-weight: 500;
+  padding: 12px 16px;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--muted);
+  cursor: pointer;
+  transition: all 0.2s;
+  font-family: var(--sans);
+}
+.nav-tab:hover { color: var(--text); }
+.nav-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+/* ── SHARED LAYOUT ── */
+.page-wrap { max-width: 1000px; margin: 0 auto; padding: 28px 20px 60px; }
+.page-title { font-family: var(--mono); font-size: 13px; color: var(--muted); letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 24px; }
+
+/* ── ADMIN PAGE ── */
+.admin-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+@media(max-width:640px){ .admin-grid { grid-template-columns: 1fr; } }
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 24px;
+}
+.card-title {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--muted);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  margin-bottom: 18px;
+}
+.form-group { margin-bottom: 14px; }
+label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 6px; font-family: var(--mono); letter-spacing: 0.04em; }
+input[type=text], input[type=number], select {
+  width: 100%;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  font-family: var(--sans);
+  font-size: 14px;
+  padding: 10px 12px;
+  outline: none;
+  transition: border-color 0.2s;
+}
+input:focus, select:focus { border-color: var(--accent); }
+input::placeholder { color: var(--muted); }
+.btn-add {
+  width: 100%;
+  background: rgba(0,212,255,0.1);
+  border: 1px solid rgba(0,212,255,0.35);
+  border-radius: 10px;
+  color: var(--accent);
+  font-family: var(--sans);
+  font-size: 14px;
+  font-weight: 600;
+  padding: 11px;
+  cursor: pointer;
+  transition: all 0.2s;
+  margin-top: 4px;
+}
+.btn-add:hover { background: rgba(0,212,255,0.2); }
+
+/* Product table */
+.prod-table { width: 100%; border-collapse: collapse; }
+.prod-table th {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--muted);
+  text-align: left;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--border);
+  letter-spacing: 0.05em;
+}
+.prod-table td {
+  padding: 10px 10px;
+  font-size: 13px;
+  border-bottom: 1px solid rgba(42,58,85,0.4);
+  vertical-align: middle;
+}
+.prod-table tr:last-child td { border-bottom: none; }
+.prod-badge {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-size: 11px; padding: 3px 8px;
+  border-radius: 20px; font-weight: 500;
+}
+.badge-ok { background: rgba(16,185,129,0.15); color: #10b981; }
+.badge-empty { background: rgba(239,68,68,0.12); color: #f87171; }
+.btn-del {
+  background: rgba(239,68,68,0.1);
+  border: 1px solid rgba(239,68,68,0.25);
+  border-radius: 6px;
+  color: #f87171;
+  font-size: 12px;
+  padding: 4px 10px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.btn-del:hover { background: rgba(239,68,68,0.2); }
+.empty-state { text-align: center; color: var(--muted); font-size: 13px; padding: 28px 0; }
+
+/* Stats row */
+.stats-row { display: grid; grid-template-columns: repeat(3,1fr); gap: 12px; margin-bottom: 20px; }
+.stat-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 16px;
+  text-align: center;
+}
+.stat-val { font-family: var(--mono); font-size: 24px; font-weight: 700; color: var(--accent); }
+.stat-label { font-size: 11px; color: var(--muted); margin-top: 4px; }
+
+/* ── MACHINE PAGE ── */
+.machine-layout { display: grid; grid-template-columns: 1fr 320px; gap: 20px; }
+@media(max-width:720px){ .machine-layout { grid-template-columns: 1fr; } }
+
+header.machine-header { text-align: center; margin-bottom: 24px; }
+.label-chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-family: var(--mono); font-size: 11px; color: var(--accent);
+  border: 1px solid rgba(0,212,255,0.3); padding: 4px 12px;
+  border-radius: 20px; margin-bottom: 12px; letter-spacing: 0.05em;
+}
+.label-chip::before { content:'●'; font-size:8px; animation: blink 1.5s ease-in-out infinite; }
+@keyframes blink { 0%,100%{opacity:1}50%{opacity:0.3} }
+h1 { font-family: var(--mono); font-size: clamp(15px,2.5vw,20px); font-weight:700; line-height:1.3; }
+h1 span { color: var(--accent); }
+
+.machine {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  overflow: hidden;
+}
+.screen {
+  background: #000d1a;
+  border-bottom: 1px solid var(--border);
+  padding: 22px;
+  min-height: 200px;
+  position: relative;
+  overflow: hidden;
+  transition: border-color 0.4s;
+}
+.screen::before {
+  content:'';
+  position:absolute;inset:0;
+  background: radial-gradient(ellipse at 50% 0%, rgba(0,212,255,0.07) 0%, transparent 70%);
+  pointer-events:none;
+}
+.success-glow {
+  position:absolute;inset:0;
+  background: radial-gradient(ellipse at 50% 50%, rgba(16,185,129,0.15) 0%, transparent 70%);
+  pointer-events:none; opacity:0; transition: opacity 0.5s;
+}
+.success-glow.visible { opacity:1; }
+.screen-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; }
+.screen-brand { font-family:var(--mono); font-size:11px; color:var(--accent); letter-spacing:.1em; }
+.screen-time { font-family:var(--mono); font-size:11px; color:var(--muted); }
+.state-label { font-family:var(--mono); font-size:10px; color:var(--muted); margin-bottom:6px; letter-spacing:.05em; }
+.state-name { font-family:var(--mono); font-size:20px; font-weight:700; color:var(--accent); transition:all 0.3s; }
+.message { margin-top:10px; font-size:13px; color:var(--text); font-weight:300; line-height:1.6; white-space:pre-line; }
+
+/* Product selector */
+.product-grid { display:grid; grid-template-columns: repeat(auto-fill, minmax(120px,1fr)); gap:8px; margin-top:14px; }
+.prod-card {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px;
+  cursor: pointer;
+  transition: all 0.2s;
+  text-align: center;
+}
+.prod-card:hover { border-color: rgba(0,212,255,0.5); background: #243049; }
+.prod-card.selected { border-color: var(--accent); background: rgba(0,212,255,0.1); }
+.prod-card.out { opacity: 0.35; cursor: not-allowed; }
+.prod-card .prod-emoji { font-size: 24px; }
+.prod-card .prod-n { font-size: 11px; color: var(--text); margin-top:4px; font-weight:500; }
+.prod-card .prod-p { font-family:var(--mono); font-size:11px; color:var(--accent); margin-top:2px; }
+.prod-card .prod-s { font-size:10px; color:var(--muted); margin-top:2px; }
+
+/* QR area */
+.qr-area { display:none; margin-top:14px; align-items:center; gap:16px; }
+.qr-area.visible { display:flex; }
+.qr-box {
+  width:90px; height:90px; background:white;
+  border-radius:8px; padding:6px; flex-shrink:0;
+  display:flex; align-items:center; justify-content:center;
+}
+.qr-box canvas, .qr-box img { width:100%!important; height:100%!important; }
+.qr-info { font-size:12px; color:var(--muted); line-height:1.7; }
+.qr-amount { font-family:var(--mono); font-size:18px; font-weight:700; color:var(--success); }
+
+.spinner { display:none; width:20px; height:20px; border:2px solid rgba(0,212,255,0.2); border-top-color:var(--accent); border-radius:50%; animation:spin 0.8s linear infinite; margin-top:12px; }
+.spinner.visible { display:block; }
+@keyframes spin { to{transform:rotate(360deg)} }
+
+.progress-wrap { margin-top:14px; padding-top:14px; border-top:1px solid var(--border); }
+.progress-labels { display:flex; justify-content:space-between; font-size:9px; color:var(--muted); font-family:var(--mono); margin-bottom:6px; }
+.progress-bar { height:3px; background:var(--border); border-radius:2px; overflow:hidden; }
+.progress-fill { height:100%; background:linear-gradient(90deg,var(--accent2),var(--accent)); border-radius:2px; transition:width 0.6s cubic-bezier(0.4,0,0.2,1); }
+
+/* Controls */
+.controls { padding:18px; }
+.controls-label { font-size:11px; color:var(--muted); font-family:var(--mono); letter-spacing:.05em; margin-bottom:10px; text-transform:uppercase; }
+.btn-grid { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+.btn {
+  background:var(--surface2); border:1px solid var(--border); border-radius:10px;
+  color:var(--text); font-family:var(--sans); font-size:12px; font-weight:500;
+  padding:9px 10px; cursor:pointer; transition:all 0.2s; text-align:left;
+  display:flex; align-items:center; gap:7px;
+}
+.btn:hover:not(:disabled) { background:#243049; border-color:rgba(0,212,255,0.4); color:var(--accent); }
+.btn:disabled { opacity:0.3; cursor:not-allowed; }
+.btn.primary { background:rgba(0,212,255,0.1); border-color:rgba(0,212,255,0.4); color:var(--accent); }
+.btn.primary:hover:not(:disabled) { background:rgba(0,212,255,0.2); }
+.btn.danger { background:rgba(239,68,68,0.08); border-color:rgba(239,68,68,0.3); color:#f87171; }
+.btn.danger:hover:not(:disabled) { background:rgba(239,68,68,0.15); }
+
+/* Right panel */
+.right-panel { display:flex; flex-direction:column; gap:14px; }
+.panel { background:var(--surface); border:1px solid var(--border); border-radius:16px; padding:18px; }
+.panel-title { font-family:var(--mono); font-size:10px; color:var(--muted); letter-spacing:.08em; text-transform:uppercase; margin-bottom:14px; }
+
+.state-list { display:flex; flex-direction:column; gap:5px; }
+.state-item { display:flex; align-items:center; gap:9px; padding:7px 9px; border-radius:8px; border:1px solid transparent; transition:all 0.25s; font-size:12px; }
+.state-item.active { background:rgba(0,212,255,0.08); border-color:rgba(0,212,255,0.3); }
+.state-item.err-state.active { background:rgba(239,68,68,0.08); border-color:rgba(239,68,68,0.3); }
+.state-badge { font-family:var(--mono); font-size:9px; font-weight:700; width:26px; height:18px; display:flex; align-items:center; justify-content:center; border-radius:4px; background:var(--surface2); color:var(--muted); flex-shrink:0; transition:all 0.25s; }
+.state-item.active .state-badge { background:var(--accent); color:#000; }
+.state-item.err-state.active .state-badge { background:var(--error); color:#fff; }
+.state-name-sm { font-size:11px; color:var(--muted); flex:1; transition:color 0.25s; }
+.state-item.active .state-name-sm { color:var(--text); }
+.state-dot { width:5px; height:5px; border-radius:50%; background:var(--border); flex-shrink:0; transition:all 0.25s; }
+.state-item.active .state-dot { background:var(--accent); box-shadow:0 0 6px var(--accent); }
+.state-item.err-state.active .state-dot { background:var(--error); box-shadow:0 0 6px var(--error); }
+
+.log-area { background:#000d1a; border-radius:8px; padding:10px; font-family:var(--mono); font-size:10px; color:var(--muted); min-height:70px; max-height:110px; overflow-y:auto; line-height:1.9; }
+.log-entry { display:flex; gap:7px; }
+.log-time { color:var(--accent2); flex-shrink:0; }
+.log-tx { color:var(--accent); }
+
+.trans-table { width:100%; font-size:10px; font-family:var(--mono); border-collapse:collapse; }
+.trans-table th { color:var(--muted); text-align:left; padding:4px 6px; border-bottom:1px solid var(--border); font-weight:400; }
+.trans-table td { padding:4px 6px; color:var(--muted); border-bottom:1px solid rgba(42,58,85,0.4); }
+.trans-table tr.hl td { color:var(--text); background:rgba(0,212,255,0.05); }
+.q-col { color:var(--accent2); }
+.nq-col { color:var(--accent); }
+
+@keyframes flash { 0%{opacity:1}50%{opacity:0.4}100%{opacity:1} }
+.flashing { animation:flash 0.4s ease; }
+
+/* ── LOGIN MODAL ── */
+.modal-overlay {
+  position: fixed; inset: 0; z-index: 200;
+  background: rgba(0,0,0,0.7);
+  backdrop-filter: blur(6px);
+  display: flex; align-items: center; justify-content: center;
+  opacity: 0; pointer-events: none;
+  transition: opacity 0.25s;
+}
+.modal-overlay.show { opacity: 1; pointer-events: all; }
+.modal-box {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  padding: 36px 32px;
+  width: 100%; max-width: 360px;
+  position: relative;
+}
+.modal-title {
+  font-family: var(--mono);
+  font-size: 13px;
+  color: var(--accent);
+  letter-spacing: 0.08em;
+  margin-bottom: 6px;
+}
+.modal-sub {
+  font-size: 12px;
+  color: var(--muted);
+  margin-bottom: 24px;
+}
+.modal-input {
+  width: 100%;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: 18px;
+  letter-spacing: 0.15em;
+  padding: 12px 16px;
+  outline: none;
+  margin-bottom: 14px;
+  text-align: center;
+  transition: border-color 0.2s;
+}
+.modal-input:focus { border-color: var(--accent); }
+.modal-input.wrong { border-color: var(--error); animation: shake 0.35s ease; }
+@keyframes shake {
+  0%,100%{transform:translateX(0)}
+  25%{transform:translateX(-8px)}
+  75%{transform:translateX(8px)}
+}
+.modal-btn {
+  width: 100%;
+  background: rgba(0,212,255,0.1);
+  border: 1px solid rgba(0,212,255,0.4);
+  border-radius: 10px;
+  color: var(--accent);
+  font-family: var(--sans);
+  font-size: 14px;
+  font-weight: 600;
+  padding: 12px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.modal-btn:hover { background: rgba(0,212,255,0.2); }
+.modal-cancel {
+  display: block; text-align: center;
+  margin-top: 12px; font-size: 12px;
+  color: var(--muted); cursor: pointer;
+  background: none; border: none;
+  font-family: var(--sans);
+}
+.modal-cancel:hover { color: var(--text); }
+.modal-hint { font-size: 11px; color: var(--muted); text-align: center; margin-top: 16px; font-family: var(--mono); }
+.admin-badge {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-size: 11px; color: var(--success);
+  background: rgba(16,185,129,0.1);
+  border: 1px solid rgba(16,185,129,0.3);
+  border-radius: 20px; padding: 3px 10px;
+  margin-left: 8px; font-family: var(--mono);
+}
+.btn-logout {
+  margin-left: auto;
+  background: rgba(239,68,68,0.08);
+  border: 1px solid rgba(239,68,68,0.25);
+  border-radius: 8px;
+  color: #f87171;
+  font-size: 11px;
+  padding: 5px 12px;
+  cursor: pointer;
+  font-family: var(--sans);
+  transition: all 0.2s;
+}
+.btn-logout:hover { background: rgba(239,68,68,0.18); }
+
+/* Toast */
+.toast {
+  position:fixed; bottom:24px; left:50%; transform:translateX(-50%) translateY(80px);
+  background:var(--surface); border:1px solid var(--border); border-radius:12px;
+  padding:12px 20px; font-size:13px; color:var(--text);
+  transition:transform 0.3s cubic-bezier(0.4,0,0.2,1);
+  z-index:999; white-space:nowrap; box-shadow:0 8px 32px rgba(0,0,0,0.4);
+}
+.toast.show { transform:translateX(-50%) translateY(0); }
+.toast.success { border-color:rgba(16,185,129,0.5); color:#10b981; }
+.toast.error-t { border-color:rgba(239,68,68,0.5); color:#f87171; }
+</style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav>
+  <div class="nav-brand">VEND-OS 2.0</div>
+  <div class="nav-tabs">
+    <button class="nav-tab active" onclick="showView('machine')">🖥 Mesin</button>
+    <button class="nav-tab" id="adminTab" onclick="requestAdmin()">⚙ Admin</button>
+  </div>
+  <div id="adminBadge" style="display:none;margin-left:12px;">
+    <span class="admin-badge">✓ Admin</span>
+    <button class="btn-logout" onclick="logout()">Logout</button>
+  </div>
+</nav>
+
+<!-- ══════════════ VIEW: MACHINE ══════════════ -->
+<div class="view active" id="view-machine">
+  <div class="page-wrap">
+
+    <header class="machine-header">
+      <div class="label-chip">FSA SIMULATION v2.0</div>
+      <h1>Smart Vending Machine<br><span>Berbasis Pembayaran QRIS</span></h1>
+      <p style="margin-top:6px;font-size:12px;color:var(--muted);font-weight:300;">Implementasi Finite State Automata — Teori Komputasi</p>
+    </header>
+
+    <div class="machine-layout">
+      <!-- Machine left -->
+      <div class="machine">
+        <div class="screen" id="screen">
+          <div class="success-glow" id="successGlow"></div>
+          <div class="screen-header">
+            <div class="screen-brand">VEND-OS / QRIS</div>
+            <div class="screen-time" id="clock">--:--:--</div>
+          </div>
+
+          <div class="state-label">CURRENT STATE →</div>
+          <div class="state-name" id="stateName">q0 — IDLE</div>
+          <div class="message" id="msgDisplay">Selamat datang! Tekan tombol untuk mulai bertransaksi.</div>
+
+          <!-- Product grid (q1) -->
+          <div id="prodGrid" style="display:none">
+            <div class="product-grid" id="productCards"></div>
+          </div>
+
+          <!-- QR Area (q3) -->
+          <div class="qr-area" id="qrArea">
+            <div class="qr-box" id="qrBox"></div>
+            <div class="qr-info">
+              <div class="qr-amount" id="qrAmount">Rp 0</div>
+              <div id="qrProdName" style="margin-top:3px;color:var(--text);">-</div>
+              <div style="color:var(--accent);margin-top:2px;font-size:11px;">Scan dengan aplikasi QRIS</div>
+              <div id="qrTimer" style="margin-top:3px;font-size:10px;color:var(--warning);"></div>
+            </div>
+          </div>
+
+          <div class="spinner" id="spinner"></div>
+
+          <div class="progress-wrap">
+            <div class="progress-labels">
+              <span>IDLE</span><span>PILIH</span><span>QR</span><span>BAYAR</span><span>SELESAI</span>
+            </div>
+            <div class="progress-bar">
+              <div class="progress-fill" id="progressFill" style="width:0%"></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="controls">
+          <div class="controls-label">INPUT / AKSI</div>
+          <div class="btn-grid">
+            <button class="btn primary" id="btnTekan" onclick="doTransition('tekan')">▶ Tekan / Aktifkan</button>
+            <button class="btn" id="btnPilih" onclick="doTransition('pilih')" disabled>🛒 Pilih Produk</button>
+            <button class="btn" id="btnKonfirmasi" onclick="doTransition('konfirmasi')" disabled>✓ Konfirmasi</button>
+            <button class="btn" id="btnScanQR" onclick="doTransition('scan_qr')" disabled>📱 Scan QR QRIS</button>
+            <button class="btn" id="btnBayarSukses" onclick="doTransition('bayar_sukses')" disabled>💳 Bayaran Sukses</button>
+            <button class="btn danger" id="btnBatal" onclick="doTransition('batal')">✕ Batal / Gagal</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Right panel -->
+      <div class="right-panel">
+        <div class="panel">
+          <div class="panel-title">// State Diagram</div>
+          <div class="state-list">
+            <div class="state-item active" id="si-q0"><div class="state-badge">q0</div><div class="state-name-sm">Idle (start)</div><div class="state-dot"></div></div>
+            <div class="state-item" id="si-q1"><div class="state-badge">q1</div><div class="state-name-sm">Pilih produk</div><div class="state-dot"></div></div>
+            <div class="state-item" id="si-q2"><div class="state-badge">q2</div><div class="state-name-sm">Konfirmasi pesanan</div><div class="state-dot"></div></div>
+            <div class="state-item" id="si-q3"><div class="state-badge">q3</div><div class="state-name-sm">Tampil QR QRIS</div><div class="state-dot"></div></div>
+            <div class="state-item" id="si-q4"><div class="state-badge">q4</div><div class="state-name-sm">Proses pembayaran</div><div class="state-dot"></div></div>
+            <div class="state-item" id="si-q5"><div class="state-badge">q5</div><div class="state-name-sm">Keluarkan produk</div><div class="state-dot"></div></div>
+            <div class="state-item" id="si-q6"><div class="state-badge">q6</div><div class="state-name-sm">Selesai ✓ (final)</div><div class="state-dot"></div></div>
+            <div class="state-item err-state" id="si-q7"><div class="state-badge">q7</div><div class="state-name-sm">Error / Batal</div><div class="state-dot"></div></div>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-title">// Log Transisi δ(q,a)→q'</div>
+          <div class="log-area" id="logArea">
+            <div class="log-entry" style="color:#2a3a55;">— menunggu input pertama —</div>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-title">// Tabel Transisi</div>
+          <table class="trans-table" id="transTable">
+            <thead><tr><th>δ(q, input)</th><th>q'</th></tr></thead>
+            <tbody>
+              <tr id="tr-q0-tekan"><td><span class="q-col">q0</span>, tekan</td><td class="nq-col">q1</td></tr>
+              <tr id="tr-q1-pilih"><td><span class="q-col">q1</span>, pilih</td><td class="nq-col">q2</td></tr>
+              <tr id="tr-q1-batal"><td><span class="q-col">q1</span>, batal</td><td class="nq-col">q7</td></tr>
+              <tr id="tr-q2-konfirmasi"><td><span class="q-col">q2</span>, konfirmasi</td><td class="nq-col">q3</td></tr>
+              <tr id="tr-q2-batal"><td><span class="q-col">q2</span>, batal</td><td class="nq-col">q7</td></tr>
+              <tr id="tr-q3-scan_qr"><td><span class="q-col">q3</span>, scan_qr</td><td class="nq-col">q4</td></tr>
+              <tr id="tr-q3-batal"><td><span class="q-col">q3</span>, batal</td><td class="nq-col">q7</td></tr>
+              <tr id="tr-q4-bayar_sukses"><td><span class="q-col">q4</span>, bayar_sukses</td><td class="nq-col">q5</td></tr>
+              <tr id="tr-q4-batal"><td><span class="q-col">q4</span>, batal</td><td class="nq-col">q7</td></tr>
+              <tr id="tr-q5-selesai"><td><span class="q-col">q5</span>, selesai</td><td class="nq-col">q6</td></tr>
+              <tr id="tr-q6-reset"><td><span class="q-col">q6</span>, reset</td><td class="nq-col">q0</td></tr>
+              <tr id="tr-q7-reset"><td><span class="q-col">q7</span>, reset</td><td class="nq-col">q0</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════ VIEW: ADMIN ══════════════ -->
+<div class="view" id="view-admin">
+  <div class="page-wrap">
+    <div class="page-title">// Panel Admin — Manajemen Produk</div>
+
+    <div class="stats-row">
+      <div class="stat-card"><div class="stat-val" id="statTotal">0</div><div class="stat-label">Total Produk</div></div>
+      <div class="stat-card"><div class="stat-val" id="statStok">0</div><div class="stat-label">Total Stok</div></div>
+      <div class="stat-card"><div class="stat-val" id="statTrx">0</div><div class="stat-label">Transaksi Sukses</div></div>
+    </div>
+
+    <div class="admin-grid">
+      <!-- Form tambah -->
+      <div class="card">
+        <div class="card-title">// Tambah Produk Baru</div>
+        <div class="form-group">
+          <label>NAMA PRODUK</label>
+          <input type="text" id="inpNama" placeholder="cth: Aqua 600ml" maxlength="30">
+        </div>
+        <div class="form-group">
+          <label>HARGA (Rp)</label>
+          <input type="number" id="inpHarga" placeholder="cth: 5000" min="100" max="999999">
+        </div>
+        <div class="form-group">
+          <label>STOK</label>
+          <input type="number" id="inpStok" placeholder="cth: 10" min="0" max="99">
+        </div>
+        <div class="form-group">
+          <label>EMOJI PRODUK</label>
+          <select id="inpEmoji">
+            <option value="🥤">🥤 Minuman</option>
+            <option value="🍫">🍫 Coklat</option>
+            <option value="🍪">🍪 Snack / Biskuit</option>
+            <option value="🍜">🍜 Mie Instan</option>
+            <option value="🧃">🧃 Jus</option>
+            <option value="☕">☕ Kopi</option>
+            <option value="🍵">🍵 Teh</option>
+            <option value="🌊">🌊 Air Mineral</option>
+            <option value="🍬">🍬 Permen</option>
+            <option value="🥜">🥜 Kacang</option>
+          </select>
+        </div>
+        <button class="btn-add" onclick="tambahProduk()">+ Tambah Produk</button>
+      </div>
+
+      <!-- Daftar produk -->
+      <div class="card">
+        <div class="card-title">// Daftar Produk</div>
+        <div id="prodListAdmin">
+          <div class="empty-state">Belum ada produk.<br>Tambahkan produk di sebelah kiri.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Login Modal -->
+<div class="modal-overlay" id="loginModal">
+  <div class="modal-box">
+    <div class="modal-title">// ADMIN ACCESS</div>
+    <div class="modal-sub">Masukkan password untuk masuk ke panel admin.</div>
+    <input class="modal-input" type="password" id="pwdInput" placeholder="••••••••"
+      onkeydown="if(event.key==='Enter') checkLogin()"
+      oninput="this.classList.remove('wrong')" maxlength="20">
+    <button class="modal-btn" onclick="checkLogin()">🔐 Masuk Admin</button>
+    <button class="modal-cancel" onclick="closeLogin()">Batal, kembali ke Mesin</button>
+    <div class="modal-hint">hint: gunakan password yang sudah ditetapkan</div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<script>
+// ── DATA ──
+let products = [];
+let trxCount = 0;
+let current = 'q0';
+let selectedProduct = null;
+let logEntries = [];
+let autoTimer = null;
+let qrCountdown = null;
+let qrInstance = null;
+
+function saveData() {
+  // data disimpan di memori selama sesi berlangsung
+}
+
+// ── VIEW SWITCH ──
+// ── AUTH ──
+const ADMIN_PASSWORD = 'admin123'; // ganti password di sini
+let isAdminLoggedIn = false;
+
+function requestAdmin() {
+  if (isAdminLoggedIn) {
+    showView('admin');
+    return;
+  }
+  document.getElementById('loginModal').classList.add('show');
+  setTimeout(() => document.getElementById('pwdInput').focus(), 100);
+}
+
+function checkLogin() {
+  const pwd = document.getElementById('pwdInput').value;
+  if (pwd === ADMIN_PASSWORD) {
+    isAdminLoggedIn = true;
+    document.getElementById('loginModal').classList.remove('show');
+    document.getElementById('pwdInput').value = '';
+    document.getElementById('adminBadge').style.display = 'flex';
+    document.getElementById('adminBadge').style.alignItems = 'center';
+    document.getElementById('adminBadge').style.gap = '8px';
+    showToast('✓ Login admin berhasil!', 'success');
+    showView('admin', true);
+  } else {
+    const inp = document.getElementById('pwdInput');
+    inp.classList.add('wrong');
+    inp.value = '';
+    inp.placeholder = 'Password salah, coba lagi...';
+    setTimeout(() => inp.placeholder = '••••••••', 2000);
+    showToast('Password salah!', 'error-t');
+  }
+}
+
+function closeLogin() {
+  document.getElementById('loginModal').classList.remove('show');
+  document.getElementById('pwdInput').value = '';
+  // kembalikan tab ke mesin
+  document.querySelectorAll('.nav-tab').forEach(el => el.classList.remove('active'));
+  document.querySelector('.nav-tab').classList.add('active');
+}
+
+function logout() {
+  isAdminLoggedIn = false;
+  document.getElementById('adminBadge').style.display = 'none';
+  showView('machine', true);
+  document.querySelectorAll('.nav-tab').forEach(el => el.classList.remove('active'));
+  document.querySelector('.nav-tab').classList.add('active');
+  showToast('Logout berhasil', '');
+}
+
+function showView(v, skipEvent) {
+  document.querySelectorAll('.view').forEach(el => el.classList.remove('active'));
+  document.getElementById('view-' + v).classList.add('active');
+  if (!skipEvent) {
+    document.querySelectorAll('.nav-tab').forEach(el => el.classList.remove('active'));
+    event.target.classList.add('active');
+  }
+  if (v === 'admin') renderAdmin();
+}
+
+// ── TOAST ──
+function showToast(msg, type='') {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'toast show ' + type;
+  setTimeout(() => t.className = 'toast', 2800);
+}
+
+// ── ADMIN ──
+function tambahProduk() {
+  const nama = document.getElementById('inpNama').value.trim();
+  const harga = parseInt(document.getElementById('inpHarga').value);
+  const stok = parseInt(document.getElementById('inpStok').value);
+  const emoji = document.getElementById('inpEmoji').value;
+  if (!nama) return showToast('Nama produk wajib diisi!', 'error-t');
+  if (!harga || harga < 100) return showToast('Harga minimal Rp 100', 'error-t');
+  if (isNaN(stok) || stok < 0) return showToast('Stok tidak valid', 'error-t');
+  products.push({ id: Date.now(), nama, harga, stok, emoji });
+  saveData();
+  renderAdmin();
+  document.getElementById('inpNama').value = '';
+  document.getElementById('inpHarga').value = '';
+  document.getElementById('inpStok').value = '';
+  showToast('✓ Produk berhasil ditambahkan!', 'success');
+}
+
+function hapusProduk(id) {
+  products = products.filter(p => p.id !== id);
+  saveData();
+  renderAdmin();
+  showToast('Produk dihapus', '');
+}
+
+function renderAdmin() {
+  const totalStok = products.reduce((s,p) => s + p.stok, 0);
+  document.getElementById('statTotal').textContent = products.length;
+  document.getElementById('statStok').textContent = totalStok;
+  document.getElementById('statTrx').textContent = trxCount;
+
+  const el = document.getElementById('prodListAdmin');
+  if (products.length === 0) {
+    el.innerHTML = '<div class="empty-state">Belum ada produk.<br>Tambahkan produk di sebelah kiri.</div>';
+    return;
+  }
+  el.innerHTML = `<table class="prod-table">
+    <thead><tr><th>PRODUK</th><th>HARGA</th><th>STOK</th><th></th></tr></thead>
+    <tbody>
+      ${products.map(p => `
+        <tr>
+          <td>${p.emoji} ${p.nama}</td>
+          <td style="font-family:var(--mono);color:var(--accent)">Rp ${p.harga.toLocaleString('id-ID')}</td>
+          <td><span class="prod-badge ${p.stok > 0 ? 'badge-ok' : 'badge-empty'}">${p.stok > 0 ? '✓ ' + p.stok : '✕ Habis'}</span></td>
+          <td><button class="btn-del" onclick="hapusProduk(${p.id})">Hapus</button></td>
+        </tr>`).join('')}
+    </tbody>
+  </table>`;
+}
+
+// ── FSA ──
+const states = {
+  q0: { label:'q0 — IDLE', msg:'Selamat datang!\nTekan tombol untuk mulai bertransaksi.', progress:0 },
+  q1: { label:'q1 — PILIH PRODUK', msg:'Pilih produk yang tersedia di bawah ini:', progress:14 },
+  q2: { label:'q2 — KONFIRMASI', msg:'', progress:28 },
+  q3: { label:'q3 — TAMPIL QR QRIS', msg:'Scan QR Code berikut menggunakan\naplikasi e-wallet Anda (GoPay, OVO, Dana, dll).', progress:50 },
+  q4: { label:'q4 — PROSES PEMBAYARAN', msg:'Menunggu konfirmasi dari server QRIS...\nJangan tutup aplikasi.', progress:68 },
+  q5: { label:'q5 — KELUARKAN PRODUK', msg:'Pembayaran QRIS berhasil! ✓\nProduk sedang dikeluarkan oleh dispenser...', progress:88 },
+  q6: { label:'q6 — SELESAI ✓', msg:'Transaksi selesai!\nAmbil produk Anda. Terima kasih!', progress:100 },
+  q7: { label:'q7 — ERROR / BATAL', msg:'Transaksi dibatalkan atau gagal.\nSistem kembali ke Idle...', progress:0 }
+};
+
+const transitions = {
+  q0: { tekan:'q1' },
+  q1: { pilih:'q2', batal:'q7' },
+  q2: { konfirmasi:'q3', batal:'q7' },
+  q3: { scan_qr:'q4', batal:'q7' },
+  q4: { bayar_sukses:'q5', batal:'q7' },
+  q5: { selesai:'q6' },
+  q6: { reset:'q0' },
+  q7: { reset:'q0' }
+};
+
+const enabledByState = {
+  q0:['tekan'],
+  q1:['pilih','batal'],
+  q2:['konfirmasi','batal'],
+  q3:['scan_qr','batal'],
+  q4:['bayar_sukses','batal'],
+  q5:[], q6:[], q7:[]
+};
+
+const btnMap = {
+  tekan:'btnTekan', pilih:'btnPilih', konfirmasi:'btnKonfirmasi',
+  scan_qr:'btnScanQR', bayar_sukses:'btnBayarSukses', batal:'btnBatal'
+};
+
+function doTransition(input) {
+  const next = transitions[current]?.[input];
+  if (!next) return;
+
+  // Validasi pilih produk
+  if (input === 'pilih' && !selectedProduct) {
+    showToast('Pilih produk terlebih dahulu!', 'error-t');
+    return;
+  }
+
+  const time = new Date().toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+  logEntries.unshift({ time, from:current, input, to:next });
+  if (logEntries.length > 8) logEntries.pop();
+
+  document.querySelectorAll('.trans-table tr').forEach(r => r.classList.remove('hl'));
+  const row = document.getElementById(`tr-${current}-${input}`);
+  if (row) row.classList.add('hl');
+
+  current = next;
+
+  // Kurangi stok saat selesai
+  if (current === 'q5' && selectedProduct) {
+    const p = products.find(x => x.id === selectedProduct.id);
+    if (p && p.stok > 0) { p.stok--; saveData(); }
+    trxCount++;
+    saveData();
+  }
+
+  updateUI();
+}
+
+function generateQR(text) {
+  const box = document.getElementById('qrBox');
+  box.innerHTML = '';
+  if (qrInstance) { try { qrInstance.clear(); } catch(e){} }
+  try {
+    qrInstance = new QRCode(box, {
+      text: text,
+      width: 78, height: 78,
+      colorDark: '#000000',
+      colorLight: '#ffffff',
+      correctLevel: QRCode.CorrectLevel.M
+    });
+  } catch(e) { box.innerHTML = '<div style="color:#ef4444;font-size:10px;text-align:center;padding:8px">QR error</div>'; }
+}
+
+function updateUI() {
+  const s = states[current];
+  const nameEl = document.getElementById('stateName');
+  nameEl.classList.add('flashing');
+  setTimeout(() => nameEl.classList.remove('flashing'), 400);
+  nameEl.textContent = s.label;
+
+  // Message
+  let msg = s.msg;
+  if (current === 'q2' && selectedProduct) {
+    msg = `Pesanan: ${selectedProduct.emoji} ${selectedProduct.nama}\nHarga: Rp ${selectedProduct.harga.toLocaleString('id-ID')}\nMetode: QRIS\n\nKonfirmasi pesanan?`;
+  }
+  document.getElementById('msgDisplay').textContent = msg;
+  document.getElementById('progressFill').style.width = s.progress + '%';
+
+  // State highlight
+  document.querySelectorAll('.state-item').forEach(el => el.classList.remove('active'));
+  const si = document.getElementById('si-' + current);
+  if (si) si.classList.add('active');
+
+  // Product grid
+  const pg = document.getElementById('prodGrid');
+  if (current === 'q1') {
+    pg.style.display = 'block';
+    renderProductCards();
+  } else {
+    pg.style.display = 'none';
+  }
+
+  // QR
+  const qrArea = document.getElementById('qrArea');
+  clearInterval(qrCountdown);
+  document.getElementById('qrTimer').textContent = '';
+  if (current === 'q3' && selectedProduct) {
+    qrArea.classList.add('visible');
+    document.getElementById('qrAmount').textContent = 'Rp ' + selectedProduct.harga.toLocaleString('id-ID');
+    document.getElementById('qrProdName').textContent = selectedProduct.emoji + ' ' + selectedProduct.nama;
+    const qrPayload = `QRIS-SIM|${selectedProduct.nama}|${selectedProduct.harga}|${Date.now()}`;
+    generateQR(qrPayload);
+    // Countdown 90s
+    let t = 90;
+    qrCountdown = setInterval(() => {
+      if (current !== 'q3') { clearInterval(qrCountdown); document.getElementById('qrTimer').textContent=''; return; }
+      document.getElementById('qrTimer').textContent = `⏱ Berlaku: ${t}s`;
+      t--;
+      if (t < 0) { clearInterval(qrCountdown); doTransition('batal'); }
+    }, 1000);
+  } else {
+    qrArea.classList.remove('visible');
+  }
+
+  // Spinner
+  document.getElementById('spinner').classList.toggle('visible', current === 'q4');
+
+  // Success glow
+  document.getElementById('successGlow').classList.toggle('visible', current === 'q5' || current === 'q6');
+
+  // Screen border
+  const screen = document.getElementById('screen');
+  screen.style.borderBottom = current === 'q7'
+    ? '1px solid rgba(239,68,68,0.4)'
+    : (current === 'q5' || current === 'q6')
+    ? '1px solid rgba(16,185,129,0.4)'
+    : '1px solid var(--border)';
+
+  // Buttons
+  const enabled = enabledByState[current] || [];
+  Object.entries(btnMap).forEach(([input, btnId]) => {
+    document.getElementById(btnId).disabled = !enabled.includes(input);
+  });
+
+  // Log
+  const logEl = document.getElementById('logArea');
+  logEl.innerHTML = logEntries.length === 0
+    ? '<div class="log-entry" style="color:#2a3a55;">— menunggu input pertama —</div>'
+    : logEntries.map(e =>
+        `<div class="log-entry"><span class="log-time">${e.time}</span><span class="log-tx"> δ(${e.from},${e.input})</span><span style="color:var(--muted)"> → </span><span style="color:#10b981">${e.to}</span></div>`
+      ).join('');
+
+  // Reset selected on q0
+  if (current === 'q0') selectedProduct = null;
+
+  // Auto transitions
+  clearTimeout(autoTimer);
+  if (current === 'q5') autoTimer = setTimeout(() => doTransition('selesai'), 2200);
+  if (current === 'q7') autoTimer = setTimeout(() => doTransition('reset'), 3000);
+  if (current === 'q6') autoTimer = setTimeout(() => doTransition('reset'), 4000);
+}
+
+function renderProductCards() {
+  const el = document.getElementById('productCards');
+  if (products.length === 0) {
+    el.innerHTML = '<div style="color:var(--muted);font-size:12px;padding:12px 0;">Belum ada produk. Tambahkan di menu Admin.</div>';
+    return;
+  }
+  el.innerHTML = products.map(p => `
+    <div class="prod-card ${p.stok === 0 ? 'out':''} ${selectedProduct?.id === p.id ? 'selected':''}"
+         onclick="${p.stok > 0 ? `selectProduct(${p.id})` : ''}">
+      <div class="prod-emoji">${p.emoji}</div>
+      <div class="prod-n">${p.nama}</div>
+      <div class="prod-p">Rp ${p.harga.toLocaleString('id-ID')}</div>
+      <div class="prod-s">${p.stok > 0 ? 'Stok: ' + p.stok : 'Habis'}</div>
+    </div>`).join('');
+}
+
+function selectProduct(id) {
+  selectedProduct = products.find(p => p.id === id) || null;
+  renderProductCards();
+}
+
+// Clock
+setInterval(() => {
+  document.getElementById('clock').textContent =
+    new Date().toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+}, 1000);
+
+// Produk default bawaan
+products = [
+  { id: 1, nama: 'Aqua 600ml', harga: 5000, stok: 8, emoji: '🌊' },
+  { id: 2, nama: 'Chitato', harga: 8000, stok: 5, emoji: '🍪' },
+  { id: 3, nama: 'Kopi Good Day', harga: 6000, stok: 3, emoji: '☕' },
+];
+
+updateUI();
+renderAdmin();
+</script>
+</body>
+</html>
