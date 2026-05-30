@@ -634,6 +634,63 @@ h1 span { color: var(--accent); }
 <div class="toast" id="toast"></div>
 
 <script>
+// ── JSONBIN CONFIG ──
+const BIN_ID = '6a1a713eddf5aa59f7775230';
+const API_KEY = '$2a$10$Tbu5ykbV44sTQm975cSsu.a93s0uuVnocRUbA4EyFHfm0sqNTZmmK';
+const BIN_URL = `https://api.jsonbin.io/v3/b/${BIN_ID}`;
+
+async function loadFromDB() {
+  try {
+    const res = await fetch(BIN_URL + '/latest', {
+      headers: { 'X-Master-Key': API_KEY }
+    });
+    const data = await res.json();
+    products = data.record.products || [];
+    trxCount = data.record.trxCount || 0;
+    // Kalau masih kosong, isi produk default
+    if (products.length === 0) {
+      products = [
+        { id: 1, nama: 'Aqua 600ml', harga: 5000, stok: 8, emoji: '🌊' },
+        { id: 2, nama: 'Chitato', harga: 8000, stok: 5, emoji: '🍪' },
+        { id: 3, nama: 'Kopi Good Day', harga: 6000, stok: 3, emoji: '☕' },
+        { id: 4, nama: 'Teh Botol', harga: 5000, stok: 6, emoji: '🍵' },
+        { id: 5, nama: 'Mie Sedaap Cup', harga: 7000, stok: 4, emoji: '🍜' },
+      ];
+      await saveToDB();
+    }
+    renderAdmin();
+    updateUI();
+  } catch(e) {
+    console.error('Gagal load DB:', e);
+    showToast('Gagal koneksi database, pakai data lokal', 'error-t');
+    products = [
+      { id: 1, nama: 'Aqua 600ml', harga: 5000, stok: 8, emoji: '🌊' },
+      { id: 2, nama: 'Chitato', harga: 8000, stok: 5, emoji: '🍪' },
+      { id: 3, nama: 'Kopi Good Day', harga: 6000, stok: 3, emoji: '☕' },
+      { id: 4, nama: 'Teh Botol', harga: 5000, stok: 6, emoji: '🍵' },
+      { id: 5, nama: 'Mie Sedaap Cup', harga: 7000, stok: 4, emoji: '🍜' },
+    ];
+    renderAdmin();
+    updateUI();
+  }
+}
+
+async function saveToDB() {
+  try {
+    await fetch(BIN_URL, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Master-Key': API_KEY
+      },
+      body: JSON.stringify({ products, trxCount })
+    });
+  } catch(e) {
+    console.error('Gagal simpan DB:', e);
+    showToast('Gagal menyimpan ke database!', 'error-t');
+  }
+}
+
 // ── DATA ──
 let products = [];
 let trxCount = 0;
@@ -645,7 +702,7 @@ let qrCountdown = null;
 let qrInstance = null;
 
 function saveData() {
-  // data disimpan di memori selama sesi berlangsung
+  saveToDB(); // simpan ke JSONbin
 }
 
 // ── VIEW SWITCH ──
@@ -967,17 +1024,7 @@ setInterval(() => {
     new Date().toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
 }, 1000);
 
-// Produk default bawaan
-products = [
-  { id: 1, nama: 'Aqua 600ml', harga: 5000, stok: 8, emoji: '🌊' },
-  { id: 2, nama: 'Chitato', harga: 8000, stok: 5, emoji: '🍪' },
-  { id: 3, nama: 'Kopi Good Day', harga: 6000, stok: 3, emoji: '☕' },
-  { id: 4, nama: 'Teh Botol', harga: 5000, stok: 6, emoji: '🍵' },
-  { id: 5, nama: 'Mie Sedaap Cup', harga: 7000, stok: 4, emoji: '🍜' },
-];
-
-updateUI();
-renderAdmin();
-</script>
+// Load data dari JSONbin saat pertama buka
+loadFromDB();</script>
 </body>
 </html>
