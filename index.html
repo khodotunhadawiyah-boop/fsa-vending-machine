@@ -598,6 +598,19 @@ h1 span { color: var(--accent); }
 /* camera */
 #swVideo { background: #000; }
 
+
+/* transaksi admin */
+.trx-admin-item {
+  display:flex; align-items:center; gap:12px;
+  padding:10px 0; border-bottom:1px solid rgba(42,58,85,0.4);
+}
+.trx-admin-item:last-child { border-bottom:none; }
+.trx-admin-emoji { width:36px;height:36px;border-radius:10px;background:rgba(0,212,255,0.08);border:1px solid rgba(0,212,255,0.15);display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0; }
+.trx-admin-info { flex:1; }
+.trx-admin-name { font-size:13px;font-weight:500; }
+.trx-admin-meta { font-size:11px;color:var(--muted);margin-top:2px;font-family:var(--mono); }
+.trx-admin-amount { font-family:var(--mono);font-size:13px;font-weight:700;color:var(--success);white-space:nowrap; }
+
 </style>
 </head>
 <body>
@@ -745,6 +758,18 @@ h1 span { color: var(--accent); }
       <div class="stat-card"><div class="stat-val" id="statTotal">0</div><div class="stat-label">Total Produk</div></div>
       <div class="stat-card"><div class="stat-val" id="statStok">0</div><div class="stat-label">Total Stok</div></div>
       <div class="stat-card"><div class="stat-val" id="statTrx">0</div><div class="stat-label">Transaksi Sukses</div></div>
+      <div class="stat-card"><div class="stat-val" id="statPendapatan" style="font-size:18px;">Rp 0</div><div class="stat-label">Total Pendapatan</div></div>
+    </div>
+
+    <!-- Riwayat Transaksi -->
+    <div class="card" style="margin-top:20px;">
+      <div class="card-title" style="display:flex;justify-content:space-between;align-items:center;">
+        <span>// Riwayat Transaksi Pembeli</span>
+        <button onclick="clearTransactions()" style="background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.3);color:var(--error);font-size:11px;padding:4px 10px;border-radius:6px;cursor:pointer;font-family:var(--mono);">🗑 Hapus Semua</button>
+      </div>
+      <div id="trxAdminList">
+        <div class="empty-state">Belum ada transaksi.</div>
+      </div>
     </div>
 
     <div class="admin-grid">
@@ -1022,8 +1047,9 @@ async function loadFromDB() {
     const data = await res.json();
     products = data.record.products || [];
     trxCount = data.record.trxCount || 0;
+    transactions = data.record.transactions || [];
     // Kalau masih kosong, isi produk default dan simpan
-    if (products.length === 0) {
+    if (products.length < 10) {
       products = [
         { id: 1, nama: 'Aqua 600ml', harga: 5000, stok: 8, emoji: '🌊' },
         { id: 2, nama: 'Chitato', harga: 8000, stok: 5, emoji: '🍪' },
@@ -1042,7 +1068,7 @@ async function loadFromDB() {
           'Content-Type': 'application/json',
           'X-Master-Key': API_KEY
         },
-        body: JSON.stringify({ products, trxCount })
+        body: JSON.stringify({ products, trxCount, transactions })
       });
       if (!saveRes.ok) throw new Error('Gagal simpan default');
       showToast('✓ Produk default berhasil dimuat!', 'success');
@@ -1079,7 +1105,7 @@ async function saveToDB() {
         'Content-Type': 'application/json',
         'X-Master-Key': API_KEY
       },
-      body: JSON.stringify({ products, trxCount })
+      body: JSON.stringify({ products, trxCount, transactions })
     });
   } catch(e) {
     console.error('Gagal simpan DB:', e);
@@ -1089,6 +1115,7 @@ async function saveToDB() {
 
 // ── DATA ──
 let products = [];
+let transactions = [];
 let trxCount = 0;
 let current = 'q0';
 let selectedProduct = null;
@@ -1198,12 +1225,15 @@ function hapusProduk(id) {
 
 function renderAdmin() {
   const totalStok = products.reduce((s,p) => s + p.stok, 0);
+  const totalPendapatan = transactions.reduce((s,t) => s + t.harga, 0);
   document.getElementById('statTotal').textContent = products.length;
+  document.getElementById('statPendapatan').textContent = 'Rp ' + totalPendapatan.toLocaleString('id-ID');
+  renderTrxAdmin();
   document.getElementById('statStok').textContent = totalStok;
   document.getElementById('statTrx').textContent = trxCount;
 
   const el = document.getElementById('prodListAdmin');
-  if (products.length === 0) {
+  if (products.length < 10) {
     el.innerHTML = '<div class="empty-state">Belum ada produk.<br>Tambahkan produk di sebelah kiri.</div>';
     return;
   }
@@ -1400,7 +1430,7 @@ function updateUI() {
 
 function renderProductCards() {
   const el = document.getElementById('productCards');
-  if (products.length === 0) {
+  if (products.length < 10) {
     el.innerHTML = '<div style="color:var(--muted);font-size:12px;padding:12px 0;">Belum ada produk. Tambahkan di menu Admin.</div>';
     return;
   }
@@ -1573,8 +1603,20 @@ function swFinish() {
   document.getElementById('swRcRef').textContent = refNo;
   document.getElementById('swOkTime').textContent = now.toLocaleString('id-ID',{day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'});
 
+  // ── SIMPAN TRANSAKSI KE JSONBIN ──
+  const trxRecord = {
+    ref: refNo,
+    product: swProduct.nama,
+    emoji: swProduct.emoji || '🏪',
+    harga: swProduct.harga,
+    waktu: now.toLocaleString('id-ID', {day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'}),
+    ts: now.getTime()
+  };
+  transactions.unshift(trxRecord);
+  trxCount++;
+  saveData();
+
   // ── KIRIM KONFIRMASI LANGSUNG KE VENDING MACHINE ──
-  // Karena satu halaman, langsung panggil fungsi VM
   try {
     if (current === 'q3') {
       showToast('✅ SimPay berhasil! Mesin memproses...', 'success');
@@ -1682,6 +1724,36 @@ function swStopCamera() {
   document.getElementById('swScanLine').classList.remove('on');
   const status = document.getElementById('swCamStatus');
   if (status) status.textContent = 'Kamera nonaktif';
+}
+
+
+function renderTrxAdmin() {
+  const el = document.getElementById('trxAdminList');
+  if (!el) return;
+  if (!transactions || transactions.length === 0) {
+    el.innerHTML = '<div class="empty-state">Belum ada transaksi.</div>';
+    document.getElementById('statTrx').textContent = 0;
+    return;
+  }
+  document.getElementById('statTrx').textContent = transactions.length;
+  el.innerHTML = transactions.map((t,i) => `
+    <div class="trx-admin-item">
+      <div class="trx-admin-emoji">${t.emoji}</div>
+      <div class="trx-admin-info">
+        <div class="trx-admin-name">${t.product}</div>
+        <div class="trx-admin-meta">${t.waktu} &nbsp;·&nbsp; Ref: ${t.ref}</div>
+      </div>
+      <div class="trx-admin-amount">+Rp ${t.harga.toLocaleString('id-ID')}</div>
+    </div>`).join('');
+}
+
+function clearTransactions() {
+  if (!confirm('Hapus semua riwayat transaksi?')) return;
+  transactions = [];
+  trxCount = 0;
+  saveData();
+  renderAdmin();
+  showToast('🗑 Riwayat transaksi dihapus', '');
 }
 
 // Load data dari JSONbin saat pertama buka
