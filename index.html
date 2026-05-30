@@ -637,95 +637,6 @@ h1 span { color: var(--accent); }
 // ── SHEETDB CONFIG ──
 const SHEETDB_URL = 'https://sheetdb.io/api/v1/ocud41nlh114m';
 
-async function loadFromDB() {
-  try {
-    showToast('Memuat data produk...', '');
-    const res = await fetch(SHEETDB_URL);
-    const data = await res.json();
-    if (data && data.length > 0) {
-      products = data.map(row => ({
-        id: parseInt(row.id),
-        nama: row.nama,
-        harga: parseInt(row.harga),
-        stok: parseInt(row.stok),
-        emoji: row.emoji
-      }));
-      showToast('✓ Data produk berhasil dimuat!', 'success');
-    } else {
-      // Kosong, isi produk default
-      products = [
-        { id: 1, nama: 'Aqua 600ml', harga: 5000, stok: 8, emoji: '🌊' },
-        { id: 2, nama: 'Chitato', harga: 8000, stok: 5, emoji: '🍪' },
-        { id: 3, nama: 'Kopi Good Day', harga: 6000, stok: 3, emoji: '☕' },
-        { id: 4, nama: 'Teh Botol', harga: 5000, stok: 6, emoji: '🍵' },
-        { id: 5, nama: 'Mie Sedaap Cup', harga: 7000, stok: 4, emoji: '🍜' },
-      ];
-      // Simpan produk default ke SheetDB
-      for (const p of products) {
-        await fetch(SHEETDB_URL, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ data: [{ id: p.id, nama: p.nama, harga: p.harga, stok: p.stok, emoji: p.emoji }] })
-        });
-      }
-      showToast('✓ Produk default berhasil dimuat!', 'success');
-    }
-    renderAdmin();
-    updateUI();
-  } catch(e) {
-    console.error('Gagal load DB:', e);
-    showToast('Gagal koneksi, pakai data lokal', 'error-t');
-    products = [
-      { id: 1, nama: 'Aqua 600ml', harga: 5000, stok: 8, emoji: '🌊' },
-      { id: 2, nama: 'Chitato', harga: 8000, stok: 5, emoji: '🍪' },
-      { id: 3, nama: 'Kopi Good Day', harga: 6000, stok: 3, emoji: '☕' },
-      { id: 4, nama: 'Teh Botol', harga: 5000, stok: 6, emoji: '🍵' },
-      { id: 5, nama: 'Mie Sedaap Cup', harga: 7000, stok: 4, emoji: '🍜' },
-    ];
-    renderAdmin();
-    updateUI();
-  }
-}
-
-async function saveToDB() {
-  // SheetDB: update stok semua produk
-  try {
-    for (const p of products) {
-      await fetch(`${SHEETDB_URL}/id/${p.id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ data: { stok: p.stok } })
-      });
-    }
-  } catch(e) {
-    console.error('Gagal simpan DB:', e);
-  }
-}
-
-async function addProductToDB(p) {
-  try {
-    await fetch(SHEETDB_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ data: [{ id: p.id, nama: p.nama, harga: p.harga, stok: p.stok, emoji: p.emoji }] })
-    });
-  } catch(e) {
-    console.error('Gagal tambah produk:', e);
-  }
-}
-
-{ async function deleteProductFromDB(id) {
-  try {
-    await fetch(`${SHEETDB_URL}/id/${id}`, { method: 'DELETE' });
-  } catch(e) {
-    console.error('Gagal hapus produk:', e);
-  }
-}
-{   console.error('Gagal simpan DB:', e);
-    showToast('Gagal menyimpan ke database!', 'error-t');
-  }
-}
-
 // ── DATA ──
 let products = [];
 let trxCount = 0;
@@ -736,8 +647,73 @@ let autoTimer = null;
 let qrCountdown = null;
 let qrInstance = null;
 
-function saveData() {
-  saveToDB(); // simpan ke JSONbin
+function saveData() { /* data disimpan via SheetDB */ }
+
+async function loadFromDB() {
+  try {
+    const res = await fetch(SHEETDB_URL);
+    const data = await res.json();
+    if (data && Array.isArray(data) && data.length > 0) {
+      products = data.map(row => ({
+        id: parseInt(row.id),
+        nama: row.nama,
+        harga: parseInt(row.harga),
+        stok: parseInt(row.stok),
+        emoji: row.emoji
+      }));
+    } else {
+      products = [
+        { id: 1, nama: 'Aqua 600ml', harga: 5000, stok: 8, emoji: '🌊' },
+        { id: 2, nama: 'Chitato', harga: 8000, stok: 5, emoji: '🍪' },
+        { id: 3, nama: 'Kopi Good Day', harga: 6000, stok: 3, emoji: '☕' },
+        { id: 4, nama: 'Teh Botol', harga: 5000, stok: 6, emoji: '🍵' },
+        { id: 5, nama: 'Mie Sedaap Cup', harga: 7000, stok: 4, emoji: '🍜' },
+      ];
+      for (const p of products) {
+        await fetch(SHEETDB_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ data: [p] })
+        });
+      }
+    }
+  } catch(e) {
+    products = [
+      { id: 1, nama: 'Aqua 600ml', harga: 5000, stok: 8, emoji: '🌊' },
+      { id: 2, nama: 'Chitato', harga: 8000, stok: 5, emoji: '🍪' },
+      { id: 3, nama: 'Kopi Good Day', harga: 6000, stok: 3, emoji: '☕' },
+      { id: 4, nama: 'Teh Botol', harga: 5000, stok: 6, emoji: '🍵' },
+      { id: 5, nama: 'Mie Sedaap Cup', harga: 7000, stok: 4, emoji: '🍜' },
+    ];
+  }
+  renderAdmin();
+  updateUI();
+}
+
+async function addProductToDB(p) {
+  try {
+    await fetch(SHEETDB_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ data: [p] })
+    });
+  } catch(e) { console.error(e); }
+}
+
+async function deleteProductFromDB(id) {
+  try {
+    await fetch(`${SHEETDB_URL}/id/${id}`, { method: 'DELETE' });
+  } catch(e) { console.error(e); }
+}
+
+async function updateStokDB(id, stok) {
+  try {
+    await fetch(`${SHEETDB_URL}/id/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ data: { stok } })
+    });
+  } catch(e) { console.error(e); }
 }
 
 // ── VIEW SWITCH ──
@@ -921,9 +897,11 @@ function doTransition(input) {
   // Kurangi stok saat selesai
   if (current === 'q5' && selectedProduct) {
     const p = products.find(x => x.id === selectedProduct.id);
-    if (p && p.stok > 0) { p.stok--; saveData(); }
+    if (p && p.stok > 0) {
+      p.stok--;
+      updateStokDB(p.id, p.stok);
+    }
     trxCount++;
-    saveData();
   }
 
   updateUI();
