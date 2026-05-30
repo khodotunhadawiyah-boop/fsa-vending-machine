@@ -641,13 +641,14 @@ const BIN_URL = `https://api.jsonbin.io/v3/b/${BIN_ID}`;
 
 async function loadFromDB() {
   try {
+    showToast('Memuat data produk...', '');
     const res = await fetch(BIN_URL + '/latest', {
       headers: { 'X-Master-Key': API_KEY }
     });
     const data = await res.json();
     products = data.record.products || [];
     trxCount = data.record.trxCount || 0;
-    // Kalau masih kosong, isi produk default
+    // Kalau masih kosong, isi produk default dan simpan
     if (products.length === 0) {
       products = [
         { id: 1, nama: 'Aqua 600ml', harga: 5000, stok: 8, emoji: '🌊' },
@@ -656,7 +657,18 @@ async function loadFromDB() {
         { id: 4, nama: 'Teh Botol', harga: 5000, stok: 6, emoji: '🍵' },
         { id: 5, nama: 'Mie Sedaap Cup', harga: 7000, stok: 4, emoji: '🍜' },
       ];
-      await saveToDB();
+      const saveRes = await fetch(BIN_URL, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Master-Key': API_KEY
+        },
+        body: JSON.stringify({ products, trxCount })
+      });
+      if (!saveRes.ok) throw new Error('Gagal simpan default');
+      showToast('✓ Produk default berhasil dimuat!', 'success');
+    } else {
+      showToast('✓ Data produk berhasil dimuat!', 'success');
     }
     renderAdmin();
     updateUI();
