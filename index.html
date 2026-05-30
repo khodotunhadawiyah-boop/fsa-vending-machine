@@ -3,9 +3,10 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>FSA Smart Vending Machine — QRIS</title>
+<title>FSA Smart Vending Machine + SimPay</title>
 <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
 <style>
 :root {
   --bg: #0a0e1a;
@@ -430,6 +431,173 @@ h1 span { color: var(--accent); }
 .toast.show { transform:translateX(-50%) translateY(0); }
 .toast.success { border-color:rgba(16,185,129,0.5); color:#10b981; }
 .toast.error-t { border-color:rgba(239,68,68,0.5); color:#f87171; }
+
+/* ══════════ SIMPAY VIEW ══════════ */
+.simpay-wrap {
+  max-width: 1000px; margin: 0 auto; padding: 28px 20px 60px;
+  display: grid; grid-template-columns: 360px 1fr; gap: 28px; align-items: start;
+}
+@media(max-width:720px){ .simpay-wrap { grid-template-columns: 1fr; } }
+
+/* Phone shell */
+.sw-phone {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 36px; overflow: hidden;
+  box-shadow: 0 0 40px rgba(0,212,255,0.05);
+}
+.sw-notch {
+  width: 100px; height: 26px; background: #0a0e1a;
+  border-bottom-left-radius: 14px; border-bottom-right-radius: 14px;
+  margin: 0 auto; display: flex; align-items: center; justify-content: center; gap: 6px;
+}
+.sw-notch-cam { width: 8px; height: 8px; background: #1e293b; border-radius: 50%; }
+.sw-notch-bar { width: 32px; height: 4px; background: #1e293b; border-radius: 2px; }
+.sw-status { display:flex; justify-content:space-between; padding:6px 20px 0; font-family:var(--mono); font-size:10px; color:var(--muted); }
+
+/* screens */
+.sw-screen { display:none; }
+.sw-screen.active { display:block; }
+
+/* home */
+.sw-home-header { padding:16px 24px 0; display:flex; justify-content:space-between; align-items:center; }
+.sw-appname { font-family:var(--mono); font-size:14px; color:var(--accent); }
+.sw-avatar { width:34px;height:34px;border-radius:50%;background:linear-gradient(135deg,var(--accent2),var(--accent));display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600; }
+.sw-balance {
+  margin:14px 18px; padding:20px;
+  background:#0f1e35; border:1px solid rgba(0,212,255,0.2); border-radius:18px;
+  position:relative; overflow:hidden;
+}
+.sw-balance::after { content:''; position:absolute;top:-40px;right:-40px;width:110px;height:110px;background:radial-gradient(circle,rgba(0,212,255,0.1) 0%,transparent 70%);border-radius:50%; }
+.sw-bal-lbl { font-family:var(--mono);font-size:10px;color:var(--muted);letter-spacing:.08em;margin-bottom:7px; }
+.sw-bal-amt { font-family:var(--mono);font-size:26px;font-weight:700; }
+.sw-bal-amt span { font-size:13px;color:var(--muted); }
+.sw-bal-sub { font-size:11px;color:var(--muted);margin-top:8px;display:flex;align-items:center;gap:6px; }
+.sw-bal-dot { width:6px;height:6px;background:var(--success);border-radius:50%;animation:blink 2s infinite; }
+
+.sw-qa { display:grid;grid-template-columns:repeat(4,1fr);gap:7px;margin:0 18px 16px; }
+.sw-qa-btn {
+  background:var(--surface2);border:1px solid var(--border);border-radius:12px;
+  padding:10px 4px;text-align:center;cursor:pointer;transition:all 0.2s;color:var(--text);
+}
+.sw-qa-btn:hover { border-color:rgba(0,212,255,0.4);background:rgba(0,212,255,0.05); }
+.sw-qa-btn.hl { border-color:rgba(0,212,255,0.4); }
+.sw-qa-icon { font-size:18px;margin-bottom:4px; }
+.sw-qa-lbl { font-size:9px;color:var(--muted); }
+
+.sw-sec { font-family:var(--mono);font-size:10px;color:var(--muted);letter-spacing:.06em;padding:0 18px 8px; }
+.sw-trx { padding:0 18px 16px; }
+.sw-trx-item { display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid rgba(42,58,85,0.4); }
+.sw-trx-item:last-child { border-bottom:none; }
+.sw-trx-ico { width:34px;height:34px;border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0; }
+.sw-trx-ico.d { background:rgba(239,68,68,0.1); }
+.sw-trx-ico.c { background:rgba(16,185,129,0.1); }
+.sw-trx-info { flex:1; }
+.sw-trx-name { font-size:12px;font-weight:500; }
+.sw-trx-time { font-size:10px;color:var(--muted);margin-top:2px; }
+.sw-trx-amt { font-family:var(--mono);font-size:12px;font-weight:700; }
+.sw-trx-amt.d { color:var(--error); }
+.sw-trx-amt.c { color:var(--success); }
+
+/* scan screen */
+.sw-hdr { display:flex;align-items:center;gap:10px;padding:13px 18px; }
+.sw-back { background:none;border:none;color:var(--muted);font-size:20px;cursor:pointer;padding:0;line-height:1; }
+.sw-stitle { font-family:var(--mono);font-size:12px;color:var(--text); }
+.sw-scan-area { margin:0 18px 16px;background:#000d1a;border:1px solid var(--border);border-radius:14px;padding:18px;text-align:center; }
+.sw-frame { width:140px;height:140px;border:2px solid rgba(0,212,255,0.3);border-radius:10px;margin:0 auto 12px;position:relative;display:flex;align-items:center;justify-content:center;overflow:hidden; }
+.sw-frame::before,.sw-frame::after,.sw-frame>span::before,.sw-frame>span::after { content:'';position:absolute;width:18px;height:18px;border-color:var(--accent);border-style:solid; }
+.sw-frame::before { top:-1px;left:-1px;border-width:2px 0 0 2px;border-radius:4px 0 0 0; }
+.sw-frame::after { top:-1px;right:-1px;border-width:2px 2px 0 0;border-radius:0 4px 0 0; }
+.sw-frame>span::before { bottom:-1px;left:-1px;border-width:0 0 2px 2px;border-radius:0 0 0 4px; }
+.sw-frame>span::after { bottom:-1px;right:-1px;border-width:0 2px 2px 0;border-radius:0 0 4px 0; }
+.sw-scanline { position:absolute;width:120px;height:2px;background:linear-gradient(90deg,transparent,var(--accent),transparent);animation:scanAnim 2s ease-in-out infinite;opacity:0; }
+.sw-scanline.on { opacity:1; }
+
+.sw-or { text-align:center;font-size:11px;color:var(--muted);position:relative;margin:0 18px 14px; }
+.sw-or::before,.sw-or::after { content:'';position:absolute;top:50%;width:38%;height:1px;background:var(--border); }
+.sw-or::before { left:0; } .sw-or::after { right:0; }
+
+.sw-inp-area { padding:0 18px 16px; }
+.sw-inp-lbl { font-family:var(--mono);font-size:10px;color:var(--muted);margin-bottom:7px;letter-spacing:.06em; }
+.sw-qrinput { width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:9px;color:var(--text);font-family:var(--mono);font-size:10px;padding:9px 11px;outline:none;transition:border-color 0.2s;resize:none; }
+.sw-qrinput:focus { border-color:var(--accent); }
+.sw-qrinput::placeholder { color:rgba(100,116,139,0.5); }
+.sw-proc-btn { width:100%;margin-top:8px;background:rgba(0,212,255,0.1);border:1px solid rgba(0,212,255,0.35);border-radius:9px;color:var(--accent);font-family:var(--sans);font-size:13px;font-weight:600;padding:11px;cursor:pointer;transition:all 0.2s; }
+.sw-proc-btn:hover { background:rgba(0,212,255,0.2); }
+.sw-demo-btn { width:100%;margin-top:7px;background:rgba(124,58,237,0.1);border:1px solid rgba(124,58,237,0.35);border-radius:9px;color:#a78bfa;font-family:var(--sans);font-size:13px;font-weight:600;padding:11px;cursor:pointer;transition:all 0.2s; }
+.sw-hint-box { margin:0 18px 16px;background:rgba(0,212,255,0.04);border:1px solid rgba(0,212,255,0.12);border-radius:9px;padding:11px;font-size:10px;color:var(--muted);line-height:1.6; }
+
+/* pay confirm */
+.sw-pay-card { margin:4px 18px 14px;background:var(--surface2);border:1px solid var(--border);border-radius:14px;padding:18px; }
+.sw-merchant { display:flex;align-items:center;gap:11px;margin-bottom:16px; }
+.sw-logo { width:42px;height:42px;border-radius:11px;background:rgba(0,212,255,0.1);border:1px solid rgba(0,212,255,0.2);display:flex;align-items:center;justify-content:center;font-size:20px; }
+.sw-m-name { font-size:13px;font-weight:600; }
+.sw-m-type { font-size:10px;color:var(--muted);margin-top:1px;font-family:var(--mono); }
+.sw-p-row { display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid rgba(42,58,85,0.4); }
+.sw-p-row:last-child { border-bottom:none; }
+.sw-p-lbl { font-size:11px;color:var(--muted); }
+.sw-p-val { font-size:12px;font-weight:500;font-family:var(--mono); }
+.sw-p-total { font-size:15px!important;color:var(--accent)!important;font-weight:700!important; }
+
+/* pin */
+.sw-pin-sec { padding:0 18px 18px; }
+.sw-pin-lbl { font-family:var(--mono);font-size:10px;color:var(--muted);margin-bottom:9px;letter-spacing:.06em; }
+.sw-pin-dots { display:flex;gap:9px;justify-content:center;margin-bottom:14px; }
+.sw-pin-dot { width:13px;height:13px;border-radius:50%;border:2px solid var(--border);transition:all 0.2s; }
+.sw-pin-dot.f { background:var(--accent);border-color:var(--accent); }
+.sw-pin-pad { display:grid;grid-template-columns:repeat(3,1fr);gap:7px; }
+.sw-pin-key { background:var(--surface2);border:1px solid var(--border);border-radius:11px;padding:13px 0;text-align:center;cursor:pointer;font-family:var(--mono);font-size:15px;font-weight:700;color:var(--text);transition:all 0.15s;user-select:none; }
+.sw-pin-key:active { transform:scale(0.93);background:rgba(0,212,255,0.1);border-color:var(--accent); }
+.sw-pin-key.del { font-size:16px;color:var(--muted); }
+.sw-pin-key.empty { background:transparent;border-color:transparent;cursor:default; }
+
+/* processing */
+.sw-proc-screen { padding:36px 18px;text-align:center; }
+.sw-ring { width:72px;height:72px;border:3px solid rgba(0,212,255,0.15);border-top-color:var(--accent);border-radius:50%;animation:spin 0.8s linear infinite;margin:0 auto 18px; }
+.sw-proc-title { font-family:var(--mono);font-size:13px;color:var(--accent);margin-bottom:6px; }
+.sw-proc-sub { font-size:11px;color:var(--muted); }
+.sw-proc-steps { margin-top:22px;text-align:left; }
+.sw-step { display:flex;align-items:center;gap:9px;padding:7px 0;font-size:11px;color:var(--muted); }
+.sw-step.done { color:var(--success); }
+.sw-step.active { color:var(--accent); }
+.sw-step-dot { width:7px;height:7px;border-radius:50%;background:var(--border);flex-shrink:0; }
+.sw-step.done .sw-step-dot { background:var(--success); }
+.sw-step.active .sw-step-dot { background:var(--accent);animation:blink 0.8s infinite; }
+
+/* success */
+.sw-ok-screen { padding:28px 18px;text-align:center; }
+.sw-ok-icon { width:72px;height:72px;border-radius:50%;background:rgba(16,185,129,0.12);border:2px solid rgba(16,185,129,0.3);display:flex;align-items:center;justify-content:center;margin:0 auto 16px;font-size:32px;animation:popIn 0.4s cubic-bezier(0.34,1.56,0.64,1); }
+.sw-ok-title { font-family:var(--mono);font-size:15px;font-weight:700;color:var(--success);margin-bottom:5px; }
+.sw-ok-sub { font-size:11px;color:var(--muted);margin-bottom:20px; }
+.sw-receipt { background:var(--surface2);border:1px solid var(--border);border-radius:14px;padding:14px;margin-bottom:16px;text-align:left; }
+.sw-rc-row { display:flex;justify-content:space-between;padding:5px 0;font-size:11px; }
+.sw-rc-key { color:var(--muted);font-family:var(--mono); }
+.sw-rc-val { font-weight:500; }
+.sw-rc-row.tot .sw-rc-val { color:var(--success);font-family:var(--mono);font-weight:700;font-size:13px; }
+.sw-done-btn { width:100%;background:rgba(16,185,129,0.12);border:1px solid rgba(16,185,129,0.3);border-radius:11px;color:var(--success);font-family:var(--sans);font-size:13px;font-weight:600;padding:13px;cursor:pointer;transition:all 0.2s; }
+.sw-done-btn:hover { background:rgba(16,185,129,0.2); }
+
+/* bottom bar */
+.sw-bottom { display:flex;justify-content:space-around;padding:11px 18px 18px;border-top:1px solid var(--border);margin-top:4px; }
+.sw-bb { background:none;border:none;cursor:pointer;text-align:center;color:var(--muted);transition:color 0.2s; }
+.sw-bb.on { color:var(--accent); }
+.sw-bb-icon { font-size:18px; }
+.sw-bb-lbl { font-size:9px;font-family:var(--mono);display:block;margin-top:2px; }
+
+/* right info panel */
+.sw-info { display:flex;flex-direction:column;gap:14px; }
+.sw-info-card { background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:18px; }
+.sw-info-title { font-family:var(--mono);font-size:10px;color:var(--muted);letter-spacing:.08em;margin-bottom:14px; }
+.sw-fsa-states { display:flex;flex-wrap:wrap;gap:6px; }
+.sw-fsa-s { font-family:var(--mono);font-size:10px;padding:4px 9px;border-radius:20px;border:1px solid var(--border);color:var(--muted);transition:all 0.3s; }
+.sw-fsa-s.act { border-color:rgba(0,212,255,0.5);color:var(--accent);background:rgba(0,212,255,0.08); }
+.sw-fsa-s.done { border-color:rgba(16,185,129,0.4);color:var(--success);background:rgba(16,185,129,0.06); }
+
+@keyframes popIn { from{transform:scale(0);opacity:0}to{transform:scale(1);opacity:1} }
+
+
+/* camera */
+#swVideo { background: #000; }
+
 </style>
 </head>
 <body>
@@ -440,6 +608,7 @@ h1 span { color: var(--accent); }
   <div class="nav-tabs">
     <button class="nav-tab active" onclick="showView('machine')">🖥 Mesin</button>
     <button class="nav-tab" id="adminTab" onclick="requestAdmin()">⚙ Admin</button>
+    <button class="nav-tab" id="simpayTab" onclick="showView('simpay')">💳 SimPay</button>
   </div>
   <div id="adminBadge" style="display:none;margin-left:12px;">
     <span class="admin-badge">✓ Admin</span>
@@ -486,6 +655,13 @@ h1 span { color: var(--accent); }
               <div id="qrTimer" style="margin-top:3px;font-size:10px;color:var(--warning);"></div>
             </div>
           </div>
+          <!-- SimPay payload copy hint -->
+          <div class="payload-hint" style="display:none;margin-top:10px;padding:10px 12px;background:rgba(124,58,237,0.08);border:1px solid rgba(124,58,237,0.25);border-radius:10px;width:100%;">
+            <div style="font-family:var(--mono);font-size:9px;color:#a78bfa;margin-bottom:5px;letter-spacing:.06em;">▶ SALIN PAYLOAD KE SIMPAY E-WALLET</div>
+            <code id="qrPayloadDisplay" onclick="this.select();document.execCommand('copy');showToast('✓ Payload disalin!','success');"
+              style="display:block;font-family:var(--mono);font-size:9px;color:#e2e8f0;word-break:break-all;cursor:pointer;line-height:1.6;"></code>
+            <div style="font-size:10px;color:#7c3aed;margin-top:5px;">Klik teks di atas untuk salin · Atau buka SimPay di tab lain — akan otomatis terdeteksi</div>
+          </div>
 
           <div class="spinner" id="spinner"></div>
 
@@ -505,7 +681,7 @@ h1 span { color: var(--accent); }
             <button class="btn primary" id="btnTekan" onclick="doTransition('tekan')">▶ Tekan / Aktifkan</button>
             <button class="btn" id="btnPilih" onclick="doTransition('pilih')" disabled>🛒 Pilih Produk</button>
             <button class="btn" id="btnKonfirmasi" onclick="doTransition('konfirmasi')" disabled>✓ Konfirmasi</button>
-            <button class="btn" id="btnScanQR" onclick="doTransition('scan_qr')" disabled>📱 Scan QR QRIS</button>
+            <button class="btn" id="btnScanQR" onclick="doTransition('scan_qr')" disabled>📱 Scan QR (Manual)</button>
             <button class="btn" id="btnBayarSukses" onclick="doTransition('bayar_sukses')" disabled>💳 Bayaran Sukses</button>
             <button class="btn danger" id="btnBatal" onclick="doTransition('batal')">✕ Batal / Gagal</button>
           </div>
@@ -627,6 +803,204 @@ h1 span { color: var(--accent); }
     <button class="modal-btn" onclick="checkLogin()">🔐 Masuk Admin</button>
     <button class="modal-cancel" onclick="closeLogin()">Batal, kembali ke Mesin</button>
     <div class="modal-hint">hint: gunakan password yang sudah ditetapkan</div>
+  </div>
+</div>
+
+
+<!-- ══════════════ VIEW: SIMPAY ══════════════ -->
+<div class="view" id="view-simpay">
+  <div class="simpay-wrap">
+
+    <!-- Phone -->
+    <div class="sw-phone">
+      <div class="sw-notch"><div class="sw-notch-cam"></div><div class="sw-notch-bar"></div></div>
+      <div class="sw-status">
+        <span style="display:flex;gap:2px;align-items:flex-end">
+          <span style="background:var(--muted);width:3px;height:4px;border-radius:1px;display:block"></span>
+          <span style="background:var(--muted);width:3px;height:7px;border-radius:1px;display:block"></span>
+          <span style="background:var(--muted);width:3px;height:10px;border-radius:1px;display:block"></span>
+          <span style="background:var(--accent);width:3px;height:13px;border-radius:1px;display:block"></span>
+        </span>
+        <span id="swClock" style="font-size:11px">00:00</span>
+        <span>🔋 87%</span>
+      </div>
+
+      <!-- HOME -->
+      <div class="sw-screen active" id="sw-home">
+        <div class="sw-home-header">
+          <div class="sw-appname">SimPay</div>
+          <div class="sw-avatar">A</div>
+        </div>
+        <div class="sw-balance">
+          <div class="sw-bal-lbl">SALDO ANDA</div>
+          <div class="sw-bal-amt"><span>Rp</span> <span id="swBalDisplay">250.000</span></div>
+          <div class="sw-bal-sub"><span class="sw-bal-dot"></span> Akun Aktif · SimPay Demo</div>
+        </div>
+        <div class="sw-qa">
+          <div class="sw-qa-btn hl" onclick="swGoTo('sw-scan')"><div class="sw-qa-icon">📷</div><div class="sw-qa-lbl">Scan QR</div></div>
+          <div class="sw-qa-btn"><div class="sw-qa-icon">💸</div><div class="sw-qa-lbl">Transfer</div></div>
+          <div class="sw-qa-btn"><div class="sw-qa-icon">⬆️</div><div class="sw-qa-lbl">Top Up</div></div>
+          <div class="sw-qa-btn"><div class="sw-qa-icon">🧾</div><div class="sw-qa-lbl">Riwayat</div></div>
+        </div>
+        <div class="sw-sec">RIWAYAT TRANSAKSI</div>
+        <div class="sw-trx" id="swTrxList">
+          <div class="sw-trx-item">
+            <div class="sw-trx-ico c">⬇️</div>
+            <div class="sw-trx-info"><div class="sw-trx-name">Top Up Awal</div><div class="sw-trx-time">Saldo awal simulator</div></div>
+            <div class="sw-trx-amt c">+Rp 250.000</div>
+          </div>
+        </div>
+        <div class="sw-bottom">
+          <button class="sw-bb on"><span class="sw-bb-icon">🏠</span><span class="sw-bb-lbl">Beranda</span></button>
+          <button class="sw-bb" onclick="swGoTo('sw-scan')"><span class="sw-bb-icon">📷</span><span class="sw-bb-lbl">Scan</span></button>
+          <button class="sw-bb"><span class="sw-bb-icon">👤</span><span class="sw-bb-lbl">Akun</span></button>
+        </div>
+      </div>
+
+      <!-- SCAN -->
+      <div class="sw-screen" id="sw-scan">
+        <div class="sw-hdr">
+          <button class="sw-back" onclick="swStopCamera();swGoTo('sw-home')">‹</button>
+          <div class="sw-stitle">SCAN QR / QRIS</div>
+        </div>
+
+        <!-- Camera viewfinder -->
+        <div class="sw-scan-area" style="position:relative;padding:0;overflow:hidden;border-radius:14px;margin:0 18px 14px;background:#000;">
+          <video id="swVideo" autoplay playsinline muted style="width:100%;display:block;border-radius:14px;min-height:200px;object-fit:cover;"></video>
+          <canvas id="swCanvas" style="display:none;"></canvas>
+          <!-- corner brackets overlay -->
+          <div style="position:absolute;inset:0;pointer-events:none;">
+            <div style="position:absolute;top:16px;left:16px;width:28px;height:28px;border-top:3px solid var(--accent);border-left:3px solid var(--accent);border-radius:3px 0 0 0;"></div>
+            <div style="position:absolute;top:16px;right:16px;width:28px;height:28px;border-top:3px solid var(--accent);border-right:3px solid var(--accent);border-radius:0 3px 0 0;"></div>
+            <div style="position:absolute;bottom:16px;left:16px;width:28px;height:28px;border-bottom:3px solid var(--accent);border-left:3px solid var(--accent);border-radius:0 0 0 3px;"></div>
+            <div style="position:absolute;bottom:16px;right:16px;width:28px;height:28px;border-bottom:3px solid var(--accent);border-right:3px solid var(--accent);border-radius:0 0 3px 0;"></div>
+            <div id="swScanLine" class="sw-scanline" style="left:16px;width:calc(100% - 32px);"></div>
+          </div>
+          <!-- status badge -->
+          <div id="swCamStatus" style="position:absolute;bottom:10px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,0.6);border:1px solid rgba(0,212,255,0.3);border-radius:20px;padding:4px 12px;font-family:var(--mono);font-size:10px;color:var(--accent);white-space:nowrap;">Memulai kamera...</div>
+        </div>
+
+        <div style="display:flex;gap:8px;margin:0 18px 14px;">
+          <button class="sw-proc-btn" style="flex:1;margin:0;" onclick="swStartCamera()">📷 Aktifkan Kamera</button>
+          <button class="sw-demo-btn" style="flex:1;margin:0;" onclick="swAutoDemo()">⚡ Demo Otomatis</button>
+        </div>
+
+        <div class="sw-or">atau input manual</div>
+        <div class="sw-inp-area">
+          <div class="sw-inp-lbl">PAYLOAD QR CODE</div>
+          <textarea class="sw-qrinput" id="swQRInput" rows="2" placeholder="Tempel payload: QRIS-SIM|NamaProduk|Harga|ts"></textarea>
+          <button class="sw-proc-btn" onclick="swParseQR()">🔍 Proses Manual</button>
+        </div>
+      </div>
+
+      <!-- PAYMENT CONFIRM -->
+      <div class="sw-screen" id="sw-pay">
+        <div class="sw-hdr">
+          <button class="sw-back" onclick="swGoTo('sw-scan')">‹</button>
+          <div class="sw-stitle">KONFIRMASI BAYAR</div>
+        </div>
+        <div class="sw-pay-card">
+          <div class="sw-merchant">
+            <div class="sw-logo" id="swPayEmoji">🏪</div>
+            <div><div class="sw-m-name">Smart Vending Machine</div><div class="sw-m-type">FSA VENDING · QRIS-SIM</div></div>
+          </div>
+          <div class="sw-p-row"><span class="sw-p-lbl">Produk</span><span class="sw-p-val" id="swPayProduct">—</span></div>
+          <div class="sw-p-row"><span class="sw-p-lbl">Harga</span><span class="sw-p-val" id="swPayPrice">—</span></div>
+          <div class="sw-p-row"><span class="sw-p-lbl">Metode</span><span class="sw-p-val">SimPay Balance</span></div>
+          <div class="sw-p-row"><span class="sw-p-lbl">Saldo</span><span class="sw-p-val" id="swPaySaldo">—</span></div>
+          <div class="sw-p-row"><span class="sw-p-lbl">Total</span><span class="sw-p-val sw-p-total" id="swPayTotal">—</span></div>
+        </div>
+        <div class="sw-pin-sec">
+          <div class="sw-pin-lbl">MASUKKAN PIN (6 DIGIT)</div>
+          <div class="sw-pin-dots">
+            <div class="sw-pin-dot" id="swpd0"></div><div class="sw-pin-dot" id="swpd1"></div>
+            <div class="sw-pin-dot" id="swpd2"></div><div class="sw-pin-dot" id="swpd3"></div>
+            <div class="sw-pin-dot" id="swpd4"></div><div class="sw-pin-dot" id="swpd5"></div>
+          </div>
+          <div class="sw-pin-pad">
+            <button class="sw-pin-key" onclick="swPin(1)">1</button>
+            <button class="sw-pin-key" onclick="swPin(2)">2</button>
+            <button class="sw-pin-key" onclick="swPin(3)">3</button>
+            <button class="sw-pin-key" onclick="swPin(4)">4</button>
+            <button class="sw-pin-key" onclick="swPin(5)">5</button>
+            <button class="sw-pin-key" onclick="swPin(6)">6</button>
+            <button class="sw-pin-key" onclick="swPin(7)">7</button>
+            <button class="sw-pin-key" onclick="swPin(8)">8</button>
+            <button class="sw-pin-key" onclick="swPin(9)">9</button>
+            <button class="sw-pin-key empty"></button>
+            <button class="sw-pin-key" onclick="swPin(0)">0</button>
+            <button class="sw-pin-key del" onclick="swPinDel()">⌫</button>
+          </div>
+          <div style="text-align:center;margin-top:9px;font-size:10px;color:var(--muted);font-family:var(--mono);">PIN Demo: 123456</div>
+        </div>
+      </div>
+
+      <!-- PROCESSING -->
+      <div class="sw-screen" id="sw-proc">
+        <div class="sw-proc-screen">
+          <div class="sw-ring"></div>
+          <div class="sw-proc-title">MEMPROSES PEMBAYARAN</div>
+          <div class="sw-proc-sub">Harap tunggu sebentar...</div>
+          <div class="sw-proc-steps">
+            <div class="sw-step" id="swStep1"><div class="sw-step-dot"></div>Verifikasi PIN</div>
+            <div class="sw-step" id="swStep2"><div class="sw-step-dot"></div>Cek saldo</div>
+            <div class="sw-step" id="swStep3"><div class="sw-step-dot"></div>Proses transaksi</div>
+            <div class="sw-step" id="swStep4"><div class="sw-step-dot"></div>Kirim konfirmasi ke mesin</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- SUCCESS -->
+      <div class="sw-screen" id="sw-ok">
+        <div class="sw-ok-screen">
+          <div class="sw-ok-icon">✓</div>
+          <div class="sw-ok-title">PEMBAYARAN BERHASIL</div>
+          <div class="sw-ok-sub" id="swOkTime">—</div>
+          <div class="sw-receipt">
+            <div class="sw-rc-row"><span class="sw-rc-key">Produk</span><span class="sw-rc-val" id="swRcProduct">—</span></div>
+            <div class="sw-rc-row"><span class="sw-rc-key">Merchant</span><span class="sw-rc-val">Smart Vending Machine</span></div>
+            <div class="sw-rc-row"><span class="sw-rc-key">Metode</span><span class="sw-rc-val">SimPay Balance</span></div>
+            <div class="sw-rc-row"><span class="sw-rc-key">No. Ref</span><span class="sw-rc-val" id="swRcRef" style="font-family:var(--mono);font-size:10px;">—</span></div>
+            <div class="sw-rc-row tot"><span class="sw-rc-key">TOTAL</span><span class="sw-rc-val" id="swRcTotal">—</span></div>
+          </div>
+          <button class="sw-done-btn" onclick="swGoHome()">🏠 Kembali ke Beranda</button>
+        </div>
+      </div>
+
+    </div><!-- /phone -->
+
+    <!-- Right info -->
+    <div class="sw-info">
+      <div class="sw-info-card">
+        <div class="sw-info-title">// FSA — STATE E-WALLET SIMULATOR</div>
+        <div class="sw-fsa-states">
+          <div class="sw-fsa-s act" id="swfs-e0">e0: IDLE</div>
+          <div class="sw-fsa-s" id="swfs-e1">e1: SCAN</div>
+          <div class="sw-fsa-s" id="swfs-e2">e2: KONFIRMASI</div>
+          <div class="sw-fsa-s" id="swfs-e3">e3: INPUT PIN</div>
+          <div class="sw-fsa-s" id="swfs-e4">e4: PROCESSING</div>
+          <div class="sw-fsa-s" id="swfs-e5">e5: SUCCESS ✓</div>
+        </div>
+      </div>
+      <div class="sw-info-card">
+        <div class="sw-info-title">// INTEGRASI FSA</div>
+        <div style="font-size:12px;color:var(--muted);line-height:1.8;">
+          SimPay dan Vending Machine berjalan dalam satu halaman.<br><br>
+          Komunikasi antar komponen menggunakan <span style="font-family:var(--mono);color:var(--accent2)">Custom Events</span> — tidak perlu localStorage lintas tab.<br><br>
+          <span style="color:var(--accent);font-family:var(--mono);">VM q3 → scan_qr →</span> mengirim event ke SimPay<br>
+          <span style="color:var(--success);font-family:var(--mono);">SimPay e5 → SUCCESS →</span> memanggil <code style="color:var(--accent)">doTransition('bayar_sukses')</code> langsung
+        </div>
+      </div>
+      <div class="sw-info-card" style="background:rgba(124,58,237,0.07);border-color:rgba(124,58,237,0.2);">
+        <div class="sw-info-title" style="color:#a78bfa;">// CATATAN PROYEK</div>
+        <div style="font-size:12px;color:var(--muted);line-height:1.7;">
+          SimPay adalah <strong style="color:#a78bfa">e-wallet simulasi</strong> untuk keperluan akademik.<br>
+          Tidak ada koneksi ke bank, jaringan pembayaran, atau server nyata.<br><br>
+          Seluruh alur merupakan implementasi FSA untuk mata kuliah Teori Komputasi.
+        </div>
+      </div>
+    </div>
+
   </div>
 </div>
 
@@ -959,6 +1333,11 @@ function updateUI() {
     document.getElementById('qrProdName').textContent = selectedProduct.emoji + ' ' + selectedProduct.nama;
     const qrPayload = `QRIS-SIM|${selectedProduct.nama}|${selectedProduct.harga}|${Date.now()}`;
     generateQR(qrPayload);
+    // Tampilkan payload untuk copy ke SimPay
+    const payloadBox = document.getElementById('qrPayloadDisplay');
+    if (payloadBox) { payloadBox.textContent = qrPayload; payloadBox.closest('.payload-hint').style.display='block'; }
+    // ── NOTIF SIMPAY langsung (satu halaman, no override) ──
+    setTimeout(() => { if(typeof swReceiveFromVM==='function') swReceiveFromVM(selectedProduct.nama, selectedProduct.harga, selectedProduct.emoji); }, 0);
     // Countdown 90s
     let t = 90;
     qrCountdown = setInterval(() => {
@@ -1035,6 +1414,265 @@ setInterval(() => {
   document.getElementById('clock').textContent =
     new Date().toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
 }, 1000);
+
+// ── INTEGRASI SIMPAY: dengarkan konfirmasi pembayaran ──
+window.addEventListener('storage', function(e) {
+  if ((e.key === 'simpay_payment' || e.key === 'simpay_trigger') && current === 'q3') {
+    try {
+      const pay = JSON.parse(localStorage.getItem('simpay_payment') || 'null');
+      if (pay && pay.status === 'SUCCESS') {
+        const age = Date.now() - pay.ts;
+        if (age < 60000) { // hanya proses kalau < 1 menit
+          showToast('✓ Konfirmasi SimPay diterima!', 'success');
+          localStorage.removeItem('simpay_payment');
+          localStorage.removeItem('simpay_trigger');
+          setTimeout(() => doTransition('scan_qr'), 600);
+          setTimeout(() => doTransition('bayar_sukses'), 2200);
+        }
+      }
+    } catch(e2) {}
+  }
+});
+
+
+// ══════════════ SIMPAY JS ══════════════
+let swBalance = 250000;
+let swProduct = null;
+let swPinBuf = '';
+let swTrxHistory = [];
+
+setInterval(() => {
+  const t = new Date().toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit'});
+  document.getElementById('swClock').textContent = t;
+}, 1000);
+
+function swGoTo(id) {
+  document.querySelectorAll('.sw-screen').forEach(s => s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  const map = {'sw-home':'e0','sw-scan':'e1','sw-pay':'e3','sw-proc':'e4','sw-ok':'e5'};
+  swSetState(map[id] || 'e0');
+  document.getElementById('swScanLine').classList.toggle('on', id === 'sw-scan');
+}
+
+function swSetState(s) {
+  const order = ['e0','e1','e2','e3','e4','e5'];
+  const idx = order.indexOf(s);
+  order.forEach((st,i) => {
+    const el = document.getElementById('swfs-' + st);
+    if (!el) return;
+    el.className = 'sw-fsa-s' + (i < idx ? ' done' : i === idx ? ' act' : '');
+  });
+}
+
+function swParseQR() {
+  const raw = document.getElementById('swQRInput').value.trim();
+  if (!raw) { showToast('⚠️ Masukkan payload QR dulu', 'error-t'); return; }
+  const parts = raw.split('|');
+  if (parts[0] !== 'QRIS-SIM' || parts.length < 3) { showToast('❌ Format QR tidak dikenali', 'error-t'); return; }
+  const harga = parseInt(parts[2]);
+  if (isNaN(harga)) { showToast('❌ Harga tidak valid', 'error-t'); return; }
+  swProduct = { nama: parts[1], harga, emoji: '🏪' };
+  swSetState('e2');
+  swShowPay();
+}
+
+function swAutoDemo() {
+  const demos = [
+    {nama:'Aqua 600ml',harga:5000,emoji:'💧'},
+    {nama:'Chitato Original',harga:8000,emoji:'🍟'},
+    {nama:'Teh Botol Sosro',harga:6000,emoji:'🍵'},
+  ];
+  const d = demos[Math.floor(Math.random()*demos.length)];
+  swProduct = d;
+  document.getElementById('swQRInput').value = `QRIS-SIM|${d.nama}|${d.harga}|demo`;
+  swSetState('e2');
+  swShowPay();
+}
+
+// Called from vending machine when QR is shown (q3)
+function swReceiveFromVM(nama, harga, emoji) {
+  swProduct = { nama, harga, emoji: emoji || '🏪' };
+  document.getElementById('swQRInput').value = `QRIS-SIM|${nama}|${harga}|${Date.now()}`;
+  showToast('📲 Permintaan bayar masuk dari Mesin!', 'success');
+  // If on simpay tab, auto show pay confirm
+  if (document.getElementById('view-simpay').classList.contains('active')) {
+    swGoTo('sw-scan');
+    setTimeout(() => swShowPay(), 400);
+  }
+}
+
+function swShowPay() {
+  if (swBalance < swProduct.harga) { showToast('❌ Saldo tidak cukup!', 'error-t'); return; }
+  document.getElementById('swPayEmoji').textContent = swProduct.emoji || '🏪';
+  document.getElementById('swPayProduct').textContent = swProduct.nama;
+  document.getElementById('swPayPrice').textContent = 'Rp ' + swProduct.harga.toLocaleString('id-ID');
+  document.getElementById('swPaySaldo').textContent = 'Rp ' + swBalance.toLocaleString('id-ID');
+  document.getElementById('swPayTotal').textContent = 'Rp ' + swProduct.harga.toLocaleString('id-ID');
+  swPinBuf = '';
+  swUpdateDots();
+  swGoTo('sw-pay');
+}
+
+function swPin(n) {
+  if (swPinBuf.length >= 6) return;
+  swPinBuf += n;
+  swUpdateDots();
+  if (swPinBuf.length === 6) setTimeout(() => swCheckPin(), 200);
+}
+
+function swPinDel() { swPinBuf = swPinBuf.slice(0,-1); swUpdateDots(); }
+
+function swUpdateDots() {
+  for (let i = 0; i < 6; i++)
+    document.getElementById('swpd'+i).classList.toggle('f', i < swPinBuf.length);
+}
+
+function swCheckPin() {
+  if (swPinBuf === '123456') {
+    swGoTo('sw-proc');
+    swRunProcessing();
+  } else {
+    showToast('❌ PIN salah! Gunakan 123456', 'error-t');
+    swPinBuf = ''; swUpdateDots();
+  }
+}
+
+function swRunProcessing() {
+  ['swStep1','swStep2','swStep3','swStep4'].forEach(s => {
+    document.getElementById(s).classList.remove('done','active');
+  });
+  const steps = ['swStep1','swStep2','swStep3','swStep4'];
+  let i = 0;
+  const tick = () => {
+    if (i > 0) { const el = document.getElementById(steps[i-1]); el.classList.remove('active'); el.classList.add('done'); }
+    if (i < steps.length) { document.getElementById(steps[i]).classList.add('active'); i++; setTimeout(tick, 650 + Math.random()*400); }
+    else setTimeout(() => swFinish(), 400);
+  };
+  tick();
+}
+
+function swFinish() {
+  swBalance -= swProduct.harga;
+  const now = new Date();
+  const timeStr = now.toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit'});
+  const refNo = 'SP' + Date.now().toString().slice(-8);
+  swTrxHistory.unshift({product:swProduct.nama,amount:swProduct.harga,time:timeStr,ref:refNo});
+
+  document.getElementById('swRcProduct').textContent = swProduct.nama;
+  document.getElementById('swRcTotal').textContent = 'Rp ' + swProduct.harga.toLocaleString('id-ID');
+  document.getElementById('swRcRef').textContent = refNo;
+  document.getElementById('swOkTime').textContent = now.toLocaleString('id-ID',{day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'});
+
+  // ── KIRIM KONFIRMASI LANGSUNG KE VENDING MACHINE ──
+  // Karena satu halaman, langsung panggil fungsi VM
+  try {
+    if (current === 'q3') {
+      showToast('✅ SimPay berhasil! Mesin memproses...', 'success');
+      setTimeout(() => doTransition('scan_qr'), 500);
+      setTimeout(() => doTransition('bayar_sukses'), 2000);
+    }
+  } catch(e) {}
+
+  swGoTo('sw-ok');
+}
+
+function swGoHome() {
+  document.getElementById('swBalDisplay').textContent = swBalance.toLocaleString('id-ID');
+  swRenderTrx();
+  swGoTo('sw-home');
+  swProduct = null; swPinBuf = '';
+  document.getElementById('swQRInput').value = '';
+}
+
+function swRenderTrx() {
+  const el = document.getElementById('swTrxList');
+  const extras = swTrxHistory.map(t => `
+    <div class="sw-trx-item">
+      <div class="sw-trx-ico d">🏪</div>
+      <div class="sw-trx-info"><div class="sw-trx-name">${t.product}</div><div class="sw-trx-time">${t.time} · ${t.ref}</div></div>
+      <div class="sw-trx-amt d">-Rp ${t.amount.toLocaleString('id-ID')}</div>
+    </div>`).join('');
+  el.innerHTML = extras + `
+    <div class="sw-trx-item">
+      <div class="sw-trx-ico c">⬇️</div>
+      <div class="sw-trx-info"><div class="sw-trx-name">Top Up Awal</div><div class="sw-trx-time">Saldo awal simulator</div></div>
+      <div class="sw-trx-amt c">+Rp 250.000</div>
+    </div>`;
+}
+
+
+
+
+// ══ CAMERA / QR SCANNER ══
+let swCamStream = null;
+let swScanLoop = null;
+let swScanned = false;
+
+function swStartCamera() {
+  swScanned = false;
+  const status = document.getElementById('swCamStatus');
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    status.textContent = '❌ Kamera tidak didukung browser ini';
+    status.style.color = 'var(--error)';
+    return;
+  }
+  status.textContent = 'Meminta izin kamera...';
+  navigator.mediaDevices.getUserMedia({
+    video: { facingMode: { ideal: 'environment' }, width: { ideal: 640 }, height: { ideal: 480 } }
+  }).then(stream => {
+    swCamStream = stream;
+    const video = document.getElementById('swVideo');
+    video.srcObject = stream;
+    video.play();
+    document.getElementById('swScanLine').classList.add('on');
+    status.textContent = '📷 Arahkan ke QR Code mesin';
+    status.style.color = 'var(--accent)';
+    video.addEventListener('loadedmetadata', () => {
+      swScanLoop = setInterval(swScanFrame, 250);
+    });
+  }).catch(err => {
+    console.warn('Camera error:', err);
+    status.textContent = '❌ Izin kamera ditolak — pakai input manual';
+    status.style.color = 'var(--error)';
+  });
+}
+
+function swScanFrame() {
+  if (swScanned) return;
+  const video = document.getElementById('swVideo');
+  const canvas = document.getElementById('swCanvas');
+  if (!video || video.readyState < 2) return;
+  const w = video.videoWidth, h = video.videoHeight;
+  if (!w || !h) return;
+  canvas.width = w; canvas.height = h;
+  const ctx = canvas.getContext('2d');
+  ctx.drawImage(video, 0, 0, w, h);
+  const imageData = ctx.getImageData(0, 0, w, h);
+  try {
+    const code = jsQR(imageData.data, w, h, { inversionAttempts: 'dontInvert' });
+    if (code && code.data) {
+      swScanned = true;
+      swStopCamera();
+      document.getElementById('swCamStatus').textContent = '✓ QR terdeteksi!';
+      document.getElementById('swQRInput').value = code.data;
+      // Auto proses kalau format QRIS-SIM
+      if (code.data.startsWith('QRIS-SIM|')) {
+        showToast('✅ QR berhasil discan!', 'success');
+        setTimeout(() => swParseQR(), 500);
+      } else {
+        showToast('⚠️ QR terbaca tapi bukan format QRIS-SIM', '');
+      }
+    }
+  } catch(e) {}
+}
+
+function swStopCamera() {
+  clearInterval(swScanLoop); swScanLoop = null;
+  if (swCamStream) { swCamStream.getTracks().forEach(t => t.stop()); swCamStream = null; }
+  document.getElementById('swScanLine').classList.remove('on');
+  const status = document.getElementById('swCamStatus');
+  if (status) status.textContent = 'Kamera nonaktif';
+}
 
 // Load data dari JSONbin saat pertama buka
 loadFromDB();</script>
